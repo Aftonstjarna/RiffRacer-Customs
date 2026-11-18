@@ -415,7 +415,7 @@ inline void exportGLTF(const Model &model, const std::vector<Texture> &textures,
         auto mat = material(m);
         mat["pbrMetallicRoughness"] = {
             {"baseColorFactor", {1, 1, 1, 1}}, {"metallicFactor", 0}, {"roughnessFactor", .6}};
-        std::string diffuse = lower(fs::path(m["textures"][0].get<std::string>()).stem());
+        std::string diffuse = lower(fs::u8path(m["textures"][0].get<std::string>()).stem().u8string());
         for (size_t i = 0; i < textures.size(); i++)
             if (lower(textures[i].name) == diffuse)
                 mat["pbrMetallicRoughness"]["baseColorTexture"] = {{"index", i}};
