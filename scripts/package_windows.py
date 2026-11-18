@@ -22,6 +22,11 @@ stage.mkdir(parents=True)
 prefix = args.prefix.resolve()
 shutil.copy2(root/'build/windows/RiffRacer-Customs.exe', stage/'RiffRacer-Customs.exe')
 shutil.copy2(prefix/'bin/gdk-pixbuf-query-loaders.exe', stage/'gdk-pixbuf-query-loaders.exe')
+helpers = list((prefix/'bin').glob('gspawn-win*-helper*.exe'))
+if not helpers:
+    raise RuntimeError('Missing GLib Windows spawn helpers')
+for helper in helpers:
+    shutil.copy2(helper, stage/helper.name)
 for relative in ['lib/gdk-pixbuf-2.0/2.10.0/loaders', 'share/glib-2.0/schemas',
                  'share/icons/Adwaita', 'share/icons/hicolor', 'share/licenses']:
     source = prefix/relative
