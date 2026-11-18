@@ -54,7 +54,7 @@ shutil.copy2(root/'NativeLinux/third_party/nlohmann/LICENSE.MIT', stage/'JSON-LI
 shutil.copy2(root/'RELEASE-NOTES.md', stage/'RELEASE-NOTES.md')
 (stage/'README.txt').write_text('RiffRacer Customs '+version+'\n\nExtract the entire ZIP, then double-click RiffRacer-Customs.exe.\nKeep the DLLs, lib and share folders alongside the program.\nOpen your Riff Racer folder containing vfs.zip, then select a car and paint.\nExport into a named mod folder, copy it into the game mods folder, and restart.\n\nPNG artwork must match the selected original texture size.\nShared decals affect all listed paints. Paint mods do not merge with other\nmods replacing the paint configuration/script. No game assets are included.\n\nGTK and its dependencies are dynamically linked. Licenses are under\nshare/licenses; replacement compatible DLLs can be used alongside the program.\nBuild dependencies and their source-package locations are recorded in\nRUNTIME-PACKAGES.txt.\n', encoding='utf-8')
 # Pacman records exact runtime/build package versions for reproducibility.
-packages = subprocess.check_output(['bash', '-lc', 'pacman -Q'], text=True)
+packages = subprocess.check_output([str(prefix.parent/'usr/bin/pacman.exe'), '-Q'], text=True)
 (stage/'RUNTIME-PACKAGES.txt').write_text('Built with MSYS2 UCRT64 packages:\n'+packages+'\nPackage sources and build recipes:\nhttps://repo.msys2.org/mingw/sources/\nhttps://github.com/msys2/MINGW-packages\n', encoding='utf-8')
 manifest = '\n'.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(stage).as_posix() for p in sorted(stage.rglob('*')) if p.is_file())+'\n'
 (stage/'FILES.sha256').write_text(manifest, encoding='utf-8')
