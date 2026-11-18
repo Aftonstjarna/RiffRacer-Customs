@@ -1,6 +1,13 @@
 #include "paint.hpp"
 #include <random>
 using namespace livery;
+static void directoryLink(const fs::path &target,const fs::path &link) {
+#ifdef _WIN32
+    require(CreateSymbolicLinkW(link.c_str(),target.c_str(),SYMBOLIC_LINK_FLAG_DIRECTORY|SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)!=0,"Native directory symlink creation failed: "+std::to_string(GetLastError()));
+#else
+    fs::create_directory_symlink(target,link);
+#endif
+}
 template<class F> void rejects(F fn) { bool failed=false;try{fn();}catch(const std::exception &){failed=true;}require(failed,"Expected refusal"); }
 int main(int argc,char **argv) {
  try {
@@ -22,15 +29,15 @@ int main(int argc,char **argv) {
         auto changed=Archive((dir/"vfs.zip").u8string());auto payload=changed.load(changed.entries[0]);require(std::equal(b.begin(),b.begin()+59+128,payload.begin()),"Metadata changed");
         write(dir/"unrelated.txt",Bytes{1});rejects([&]{exportMod(target,nullptr,dir);});
         fs::create_directory(root/"unowned");rejects([&]{exportMod(target,nullptr,root/"unowned");});
-        fs::create_directory_symlink(root/"unowned",root/"alias");rejects([&]{exportMod(target,nullptr,root/"alias");});fs::remove(root/"alias");
-        fs::create_directory_symlink(root/"unowned",root/"alias");
+        directoryLink(root/"unowned",root/"alias");rejects([&]{exportMod(target,nullptr,root/"alias");});fs::remove(root/"alias");
+        directoryLink(root/"unowned",root/"alias");
         auto aliasOutput=root/"alias"/format/"mod";
         exportMod(target,nullptr,aliasOutput);exportMod(target,&image,aliasOutput);
         require(fs::is_regular_file(root/"unowned"/format/"mod"/"vfs.zip"),"Export through parent alias failed");
-        require(safePath(aliasOutput)==fs::weakly_canonical(aliasOutput),"Output alias was not resolved");
-        fs::create_directory_symlink(root/"unowned"/format/"mod",root/"owned-link");
+        require(safePath(aliasOutput)==resolveOutputParent(root/"unowned"/format)/"mod","Output alias was not resolved");
+        directoryLink(root/"unowned"/format/"mod",root/"owned-link");
         rejects([&]{exportMod(target,nullptr,root/"owned-link");});fs::remove(root/"owned-link");
-        fs::create_directory_symlink(root/"missing",root/"dangling");
+        directoryLink(root/"missing",root/"dangling");
         rejects([&]{exportMod(target,nullptr,root/"dangling");});
         rejects([&]{exportMod(target,nullptr,root/"dangling"/"mod");});fs::remove(root/"dangling");
         fs::remove(root/"alias");

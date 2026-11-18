@@ -1,4 +1,10 @@
 #pragma once
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 // Intentional authoring tool; reuses ReRiff's original-format decoders.
 #include "../NativeLinux/native_assets.hpp"
 #include <map>
@@ -22,6 +28,36 @@ inline void put16(Bytes &b, uint32_t x) { b.push_back(x & 255); b.push_back((x >
 inline void put32(Bytes &b, uint32_t x) { put16(b,x); put16(b,x>>16); }
 inline void append(Bytes &b, const std::string &s) { b.insert(b.end(),s.begin(),s.end()); }
 inline void set32(Bytes &b, size_t p, uint32_t x) { for(int i=0;i<4;i++) b.at(p+i)=uint8_t(x>>(8*i)); }
+inline bool isOutputLink(const fs::path &path) {
+#ifdef _WIN32
+    DWORD attributes=GetFileAttributesW(path.c_str());
+    return attributes!=INVALID_FILE_ATTRIBUTES && (attributes&FILE_ATTRIBUTE_REPARSE_POINT)!=0;
+#else
+    return fs::is_symlink(fs::symlink_status(path));
+#endif
+}
+inline fs::path resolveOutputParent(const fs::path &path) {
+#ifdef _WIN32
+    auto existing=path;std::vector<fs::path> missing;
+    while(!fs::exists(existing)) {
+        require(!isOutputLink(existing),"Output parent is a dangling link");
+        require(existing.has_relative_path(),"Output parent is unavailable");
+        missing.push_back(existing.filename());existing=existing.parent_path();
+    }
+    HANDLE handle=CreateFileW(existing.c_str(),0,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,nullptr);
+    require(handle!=INVALID_HANDLE_VALUE,"Cannot resolve output directory");
+    DWORD length=GetFinalPathNameByHandleW(handle,nullptr,0,FILE_NAME_NORMALIZED);
+    if(!length){CloseHandle(handle);throw std::runtime_error("Cannot resolve output directory name");}
+    std::wstring name(length,L'\0');DWORD copied=GetFinalPathNameByHandleW(handle,name.data(),length,FILE_NAME_NORMALIZED);CloseHandle(handle);
+    require(copied>0 && copied<length,"Cannot read resolved output directory");name.resize(copied);
+    if(name.rfind(L"\\\\?\\UNC\\",0)==0)name=L"\\\\"+name.substr(8);
+    else if(name.rfind(L"\\\\?\\",0)==0)name=name.substr(4);
+    fs::path result(name);for(auto it=missing.rbegin();it!=missing.rend();++it)result/=*it;
+    return result;
+#else
+    return fs::weakly_canonical(path);
+#endif
+}
 inline fs::path safePath(const fs::path &p) {
     require(p.is_absolute(), "Use an absolute output path");
     for (const auto &part : p) {
@@ -31,11 +67,11 @@ inline fs::path safePath(const fs::path &p) {
     // Resolve ordinary directory aliases such as /home -> /var/home once.
     // Keep the output leaf separate so an existing mod-folder symlink cannot
     // redirect replacement, and perform all writes using the resolved path.
-    auto resolved=fs::weakly_canonical(p.parent_path())/p.filename();
-    fs::path current;
-    for (const auto &part : resolved) {
+    auto resolved=resolveOutputParent(p.parent_path())/p.filename();
+    fs::path current=resolved.root_path();
+    for (const auto &part : resolved.relative_path()) {
         current /= part;
-        require(!fs::is_symlink(fs::symlink_status(current)), "Output folder or unresolved parent is a symlink");
+        require(!isOutputLink(current), "Output folder or unresolved parent is a symlink");
     }
     return resolved;
 }
@@ -266,11 +302,11 @@ inline std::pair<Bytes,Bytes> archivePair(const std::string &name,const Bytes &d
 inline Json conflicts(const fs::path &parent,const fs::path &own,const std::string &resource) {
     Json found=Json::array();if(!fs::exists(parent))return found;
     for(const auto &entry:fs::directory_iterator(parent)) {
-        if(entry.is_symlink())continue;
+        if(isOutputLink(entry.path()))continue;
         auto path=entry.path();if(path==own)continue;
         if(entry.is_directory())path/="vfs.zip";
         else if(path.extension()!=".zip" || path.stem().u8string().rfind("vfs",0)!=0)continue;
-        if(!fs::is_regular_file(path) || fs::is_symlink(path))continue;
+        if(!fs::is_regular_file(path) || isOutputLink(path))continue;
         try { Archive a(path.u8string());for(const auto &e:a.entries)if(lower(e.name)==resource)found.push_back(path.u8string()); }
         catch(const std::exception &e) {found.push_back("Could not inspect "+path.u8string()+": "+e.what());}
     }
@@ -282,7 +318,7 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
         require(fs::is_directory(dest),"Output is not a directory");
         require(fs::exists(dest/"livery-maker.json"),"Refusing an unowned output folder");
         auto owner=loadJson(dest/"livery-maker.json");require(owner.value("tool","")=="reriff-livery-maker-v1","Unknown ownership record");
-        for(const auto &entry:fs::directory_iterator(dest)) require(!entry.is_symlink() && entry.is_regular_file() && (entry.path().filename()=="vfs.dat" || entry.path().filename()=="vfs.zip" || entry.path().filename()=="livery-maker.json"),"Output contains unrelated files");
+        for(const auto &entry:fs::directory_iterator(dest)) require(!isOutputLink(entry.path()) && entry.is_regular_file() && (entry.path().filename()=="vfs.dat" || entry.path().filename()=="vfs.zip" || entry.path().filename()=="livery-maker.json"),"Output contains unrelated files");
         require(sha(read((dest/"vfs.dat").u8string()))==owner.at("dat_sha256") && sha(read((dest/"vfs.zip").u8string()))==owner.at("zip_sha256"),"Owned mod has been modified externally");
     }
     auto pair=archivePair(files);
