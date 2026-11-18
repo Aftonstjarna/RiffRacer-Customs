@@ -25,6 +25,32 @@ jobs:
         run: |
           make -C LiveryMaker all test
           xvfb-run -a build/livery-maker/reriff-livery-maker --smoke-package build/linux-smoke.png
+  anylinux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build AnyLinux AppImage
+        run: |
+          docker build -t customs-anylinux -f packaging/Containerfile.anylinux .
+          docker run --rm -v "$PWD:/src" customs-anylinux
+      - name: Test on musl without GTK or FUSE
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src alpine:3.22 sh -ec '
+            apk add --no-cache xvfb-run
+            xvfb-run -a dist/*.AppImage --smoke-package /src/build/anylinux/alpine-smoke.png
+            test -s /src/build/anylinux/alpine-smoke.png
+          '
+      - uses: actions/upload-artifact@v6
+        with:
+          name: linux-release
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: linux-validation
+          path: build/anylinux/*smoke.png
   windows:
     runs-on: windows-latest
     timeout-minutes: 20

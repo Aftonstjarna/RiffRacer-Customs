@@ -11,7 +11,23 @@ dependencies are included; keep the DLLs, `lib` and `share` folders alongside it
 Open the game folder containing `vfs.zip`, select a car and paint, and export a
 named mod folder. Copy that folder into the game's `mods` directory and restart.
 
-## Linux and development
+## Linux
+
+Download `RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage` from
+[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.1.0),
+make it executable in your file manager, and open it. Or run:
+
+```sh
+chmod +x RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage
+./RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage
+```
+
+The AnyLinux package includes GTK, glibc and fonts using
+[pkgforge's sharun tooling](https://github.com/pkgforge-dev/Anylinux-AppImages).
+It supports glibc and musl distributions and falls back to extraction when
+FUSE is unavailable. It requires an x86-64 Linux desktop (X11 or Wayland).
+
+## Development
 
 Dependencies: C++17 compiler, GTK3 development libraries, libpng, zlib and OpenSSL.
 
@@ -48,3 +64,16 @@ The optional `native_probe.c` check requires a separate ReRiff checkout and an
 original Game.exe. Define `RERIFF_ENGINE_SOURCE` as the absolute path to that
 checkout's `ExperimentalMenu/engine_menu.c` when compiling it. This original-code
 probe is not needed to build or use the editor.
+
+### Building the AnyLinux AppImage
+
+```sh
+podman build -t customs-anylinux -f packaging/Containerfile.anylinux .
+podman run --rm --userns=keep-id:uid=0,gid=0 --security-opt label=disable -v "$PWD:/src" customs-anylinux
+```
+
+The output is in `dist/`. The packaging script pins and checksums quick-sharun;
+that script verifies its downloaded runtime tools. Arch dependency versions
+and license notices are recorded inside the bundle. The base image and Arch
+packages receive updates, so rebuilds are not guaranteed byte-identical.
+CI also tests the AppImage in Alpine without host GTK or FUSE.

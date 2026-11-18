@@ -1,0 +1,4 @@
+FROM docker.io/library/archlinux:base
+RUN pacman -Syu --noconfirm base-devel gtk3 libpng openssl patchelf strace wget curl xorg-server-xvfb xorg-xauth ttf-dejavu python git && pacman -Scc --noconfirm
+WORKDIR /src
+CMD ["bash", "scripts/package_linux.sh"]

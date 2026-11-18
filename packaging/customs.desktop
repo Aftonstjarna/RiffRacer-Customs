@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RiffRacer Customs
+Comment=Paint and PNG livery editor for Riff Racer
+Exec=RiffRacer-Customs
+Icon=customs
+Categories=Graphics;
+Terminal=false
+StartupWMClass=RiffRacer-Customs
