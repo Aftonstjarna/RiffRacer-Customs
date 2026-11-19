@@ -1,0 +1,6 @@
+#include "surface_snap.hpp"
+#include <iostream>
+using namespace livery;
+int main(){try{Model m;m.materials=Json::array({{{"name","carpaint"}}});AssetMesh mesh{};mesh.material=0;mesh.positions={{-1,-1,-1},{1,-1,-1},{1,1,-1},{-1,1,-1},{-1,-1,1},{1,-1,1},{1,1,1},{-1,1,1}};mesh.indices={0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,3,7,6,3,6,2,0,4,7,0,7,3,1,2,6,1,6,5};m.meshes.push_back(mesh);Matrix base{1,0,0,0,1,0,0,0,1,0,0,0};m.nodes.push_back({"body",base,{0}});
+ for(bool hud:{false,true})for(auto point:std::vector<V>{{0,1.2f,0},{1.2f,0,0},{0,0,-1.2f},{0,.8f,0}}){std::array<double,9> values{point.x,point.y,point.z,0,0,0,.2,.3,.4};auto result=snap::align(m,base,values,hud);auto matrix=adjustedMatrix(base,result);V expected=point.x>1?V{1,0,0}:point.z< -1?V{0,0,-1}:V{0,1,0};require(snap::vDot(snap::vUnit({matrix[6],matrix[7],matrix[8]}),expected)>.99999,"Normal alignment failed");require(std::abs(snap::vDot({F(result[0]),F(result[1]),F(result[2])},expected)-1.02)<.0001,"Exterior clearance failed");for(int i=6;i<9;i++)require(result[i]==values[i],"Snap changed scale");}
+ std::cout<<"PASS roof, side, rear, inside-to-exterior, outward normal, clearance and scale preservation\n";return 0;}catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

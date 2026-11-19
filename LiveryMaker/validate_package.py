@@ -8,6 +8,46 @@ import sys
 import zipfile
 
 folder = Path(sys.argv[1])
+metadata = json.loads((folder / 'livery-maker.json').read_text())
+if metadata.get('format') == 'loose-v1':
+    assert metadata['tool'] == 'reriff-livery-maker-v2'
+    assert not folder.is_symlink()
+    expected = {item['path']: item['sha256'] for item in metadata['resources']}
+    assert len(expected) == len(metadata['resources']) and 0 < len(expected) < 0x3fff
+    actual = set()
+    for path in folder.rglob('*'):
+        assert not path.is_symlink()
+        if path.is_file():
+            relative = path.relative_to(folder).as_posix()
+            assert relative == 'livery-maker.json' or relative.startswith('assets/')
+            if relative.startswith('assets/'):
+                name = relative[7:]
+                assert name.isascii() and name == name.lower() and '\\' not in name and ':' not in name
+                assert all(part not in ('', '.', '..') for part in name.split('/'))
+                assert name in expected
+                batch = path.read_bytes()
+                assert hashlib.sha256(batch).hexdigest() == expected[name]
+                actual.add(name)
+                if name.endswith('.luac'):
+                    assert batch[:12] == bytes.fromhex('1b4c75615100010404040400')
+                elif name.endswith('.cfg'):
+                    magic, version, pool, records, roots = struct.unpack_from('<5I', batch)
+                    assert magic == 0x46434647 and version == 3 and roots <= records
+                    assert len(batch) == 20 + records * 32 + pool
+                else:
+                    assert batch[:4] == b'TABT'
+                    payload, textures, names, length = struct.unpack_from('<4I', batch, 12)
+                    assert textures == 1 and payload == 52 + names and payload + length == len(batch)
+                    _, offset, size, width, height, flags = struct.unpack_from('<6I', batch, 28)
+                    dds = batch[payload + offset:payload + offset + size]
+                    assert dds[:4] == b'DDS ' and flags == 2
+                    assert struct.unpack_from('<II', dds, 12) == (height, width)
+                    assert dds[84:88] in (b'DXT3', b'DXT5')
+                    levels = max(1, struct.unpack_from('<I', dds, 28)[0])
+                    assert size == 128 + sum(max(1, (max(1, width >> i) + 3) // 4) * max(1, (max(1, height >> i) + 3) // 4) * 16 for i in range(levels))
+    assert actual == set(expected)
+    print('PASS loose asset layout, no nested archives, resource hashes, CFG/Lua and TABT/DDS/mips')
+    sys.exit(0)
 raw = (folder / 'vfs.dat').read_bytes()
 metadata = json.loads((folder / 'livery-maker.json').read_text())
 magic, nodes, count, strings, checksum = struct.unpack_from('<5I', raw)

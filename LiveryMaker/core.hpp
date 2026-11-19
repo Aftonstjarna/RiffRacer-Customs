@@ -154,8 +154,8 @@ inline Image diagnostic(const Texture &t) {
 struct Target { std::string car,name,member; Bytes batch; Texture texture; Json packs; };
 // Original localization: group descriptors, 256-word lookup table, then
 // group-byte/NUL-terminated token records. Strings follow each group's order.
-inline std::map<std::string,std::string> displayNames(const Archive &archive) {
-    const auto tokens=asset(archive,"strings/tokens.dat");
+template<class Load> inline std::map<std::string,std::string> displayNamesFrom(Load load) {
+    const auto tokens=load("strings/tokens.dat");
     require(u32(tokens,0)==3 && u32(tokens,4)==2,"Unsupported localization tokens");
     const auto count=u32(tokens,8);require(count>0 && count<=32,"Invalid localization groups");
     std::vector<std::vector<std::string>> values(count);std::vector<size_t> used(count,0);
@@ -166,7 +166,7 @@ inline std::map<std::string,std::string> displayNames(const Archive &archive) {
         std::string name(tokens.begin()+cursor,tokens.begin()+cursor+length);cursor+=length;
         require(name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")==std::string::npos,"Invalid localization group name");
         if(!entries)continue;
-        auto strings=asset(archive,"strings/"+lower(name)+"/us.str");
+        auto strings=load("strings/"+lower(name)+"/us.str");
         require(u32(strings,0)==3 && u32(strings,4)==2,"Unsupported localized strings");size_t offset=8;
         for(unsigned i=0;i<entries;i++) {
             auto units=u32(strings,offset);offset+=4;require(units<=100000 && offset<=strings.size() && uint64_t(units)*2<=strings.size()-offset,"Truncated localized string");
@@ -196,6 +196,7 @@ inline std::map<std::string,std::string> displayNames(const Archive &archive) {
     for(unsigned group=0;group<count;group++)require(used[group]==values[group].size(),"Missing localization tokens");
     return result;
 }
+inline std::map<std::string,std::string> displayNames(const Archive &archive) {return displayNamesFrom([&](const std::string &name){return asset(archive,name);});}
 inline std::string localized(const std::map<std::string,std::string> &names,const std::string &key) {
     auto it=names.find(lower(key));return it==names.end() || it->second.empty()?key:it->second;
 }
@@ -211,18 +212,19 @@ inline std::string paintNames(const Target &t,const std::map<std::string,std::st
 inline std::string displayLabel(const Target &t,const std::map<std::string,std::string> &names) {
     return localized(names,"car_"+t.car)+" — "+paintNames(t,names);
 }
-inline Target target(const Archive &archive,const std::string &name) {
+template<class Load> inline Target targetFrom(Load load,const std::string &name) {
     require(name.size()==6 && name[3]=='_' && name[4]>='0' && name[4]<='9' && name[5]>='0' && name[5]<='9' && name.substr(4)!="00","Invalid livery ID");
     for(int i=0;i<3;i++) require(std::isalnum(static_cast<unsigned char>(name[i])),"Invalid car ID");
     std::string member="graphics/vehicles/decals/"+name+"/batchTextures.brres";
-    Bytes batch=asset(archive,member); auto textures=decodeTextures(batch);
+    Bytes batch=load(member); auto textures=decodeTextures(batch);
     require(textures.size()==1 && textures[0].name==name,"Unsupported decal batch");
     Target out{name.substr(0,3),name,member,batch,textures[0],Json::array()};
-    auto cfg=asset(archive,"scripts/config/paint_PC.cfg");auto paints=cfgValue(Json::parse(Config(cfg).json()));
+    auto cfg=load("scripts/config/paint_PC.cfg");auto paints=cfgValue(Json::parse(Config(cfg).json()));
     auto packs=paints.at("Paints").at(out.car);
     for(size_t i=0;i<packs.size();i++) if(packs[i].value("livery",-1.0)==std::stoi(name.substr(4))) out.packs.push_back({{"index",i},{"name",packs[i].value("packName",std::string())}});
     return out;
 }
+inline Target target(const Archive &archive,const std::string &name){return targetFrom([&](const std::string &path){return asset(archive,path);},name);}
 inline std::vector<std::string> targets(const Archive &a) {
     std::vector<std::string> names;
     const std::string prefix="graphics/vehicles/decals/";
@@ -324,13 +326,69 @@ inline std::pair<Bytes,Bytes> archivePair(const std::map<std::string,Bytes> &fil
     dat.insert(dat.end(),pool.begin(),pool.end());return {dat,zip};
 }
 inline std::pair<Bytes,Bytes> archivePair(const std::string &name,const Bytes &data) {return archivePair(std::map<std::string,Bytes>{{name,data}});}
+inline void resourcePath(const std::string &name) {
+    require(!name.empty() && name==lower(name) && name.size()<512 && name.front()!='/' && name.back()!='/',"Invalid resource path");
+    for(unsigned char c:name)require(c>=32 && c<127 && c!='\\' && c!=':',"Invalid resource character");
+    std::stringstream stream(name);std::string part;
+    while(std::getline(stream,part,'/'))require(!part.empty() && part!="." && part!="..","Invalid resource component");
+}
+inline void verifyOwnedMod(const fs::path &dest) {
+    require(fs::is_directory(dest) && !isOutputLink(dest),"Output is not a real directory");
+    require(!isOutputLink(dest/"livery-maker.json") && fs::is_regular_file(dest/"livery-maker.json"),"Refusing an unowned output folder");
+    auto owner=loadJson(dest/"livery-maker.json");auto tool=owner.value("tool","");
+    std::set<std::string> allowed{"livery-maker.json"},directories;
+    if(tool=="reriff-livery-maker-v1") {
+        allowed.insert("vfs.dat");allowed.insert("vfs.zip");
+    } else {
+        require(tool=="reriff-livery-maker-v2" && owner.value("format","")=="loose-v1","Unknown ownership record");
+        require(owner.at("resources").is_array() && !owner.at("resources").empty(),"Missing owned resources");
+        for(const auto &item:owner.at("resources")) {
+            auto name=item.at("path").get<std::string>();resourcePath(name);
+            auto relative=fs::path("assets")/fs::u8path(name);
+            require(allowed.insert(relative.generic_u8string()).second,"Duplicate ownership resource");
+            for(auto parent=relative.parent_path();!parent.empty();parent=parent.parent_path())directories.insert(parent.generic_u8string());
+        }
+        // Only accept complete, hash-verified loader caches as disposable outputs.
+        for(const auto &entry:fs::directory_iterator(dest)) {
+            auto name=entry.path().filename().u8string();
+            if(name.rfind(".reriff-cache-",0)!=0 || entry.path().extension()!=".receipt")continue;
+            require(!isOutputLink(entry.path()) && entry.is_regular_file() && fs::file_size(entry.path())<256,"Invalid cache receipt");
+            auto bytes=read(entry.path().u8string());std::stringstream lines(std::string(bytes.begin(),bytes.end()));std::string version,datHash,zipHash,extra;
+            std::getline(lines,version);std::getline(lines,datHash);std::getline(lines,zipHash);
+            require(version=="reriff-loose-cache-v1" && datHash.size()==64 && zipHash.size()==64 && !std::getline(lines,extra),"Unknown cache receipt");
+            auto stem=entry.path();stem.replace_extension();
+            for(auto suffix:{".dat",".zip"}) {
+                fs::path file=stem;file+=suffix;
+                require(!isOutputLink(file) && fs::is_regular_file(file),"Incomplete or linked cache");
+                require(sha(read(file.u8string()))==(std::string(suffix)==".dat"?datHash:zipHash),"Modified cache");
+                allowed.insert(file.filename().u8string());
+            }
+            allowed.insert(name);
+        }
+    }
+    std::set<std::string> seen;
+    for(const auto &entry:fs::recursive_directory_iterator(dest)) {
+        require(!isOutputLink(entry.path()),"Output contains a link");
+        auto name=entry.path().lexically_relative(dest).generic_u8string();
+        if(entry.is_directory())require(directories.count(name),"Output contains unrelated directories");
+        else {require(entry.is_regular_file() && allowed.count(name),"Output contains unrelated files");seen.insert(name);}
+    }
+    require(seen==allowed,"Owned files are missing");
+    if(tool=="reriff-livery-maker-v1") {
+        require(sha(read((dest/"vfs.dat").u8string()))==owner.at("dat_sha256") && sha(read((dest/"vfs.zip").u8string()))==owner.at("zip_sha256"),"Owned mod has been modified externally");
+    } else for(const auto &item:owner.at("resources"))require(sha(read((dest/"assets"/fs::u8path(item.at("path").get<std::string>())).u8string()))==item.at("sha256"),"Owned asset has been modified externally");
+}
 inline Json conflicts(const fs::path &parent,const fs::path &own,const std::string &resource) {
     Json found=Json::array();if(!fs::exists(parent))return found;
     for(const auto &entry:fs::directory_iterator(parent)) {
         if(isOutputLink(entry.path()))continue;
-        auto path=entry.path();if(path==own)continue;
-        if(entry.is_directory())path/="vfs.zip";
-        else if(path.extension()!=".zip" || path.stem().u8string().rfind("vfs",0)!=0)continue;
+        auto path=entry.path();if(path==own || path.filename().u8string().front()=='.')continue;
+        if(entry.is_directory()) {
+            auto loose=path/"assets";bool linked=isOutputLink(loose);
+            for(const auto &part:fs::u8path(resource)){loose/=part;linked=linked||isOutputLink(loose);}
+            if(!linked && fs::is_regular_file(loose))found.push_back(loose.u8string());
+            path/="vfs.zip";
+        } else if(path.extension()!=".zip" || path.stem().u8string().rfind("vfs",0)!=0)continue;
         if(!fs::is_regular_file(path) || isOutputLink(path))continue;
         try { Archive a(path.u8string());for(const auto &e:a.entries)if(lower(e.name)==resource)found.push_back(path.u8string()); }
         catch(const std::exception &e) {found.push_back("Could not inspect "+path.u8string()+": "+e.what());}
@@ -339,15 +397,12 @@ inline Json conflicts(const fs::path &parent,const fs::path &own,const std::stri
 }
 inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination) {
     auto dest=safePath(fs::absolute(destination));
-    if(fs::exists(dest)) {
-        require(fs::is_directory(dest),"Output is not a directory");
-        require(fs::exists(dest/"livery-maker.json"),"Refusing an unowned output folder");
-        auto owner=loadJson(dest/"livery-maker.json");require(owner.value("tool","")=="reriff-livery-maker-v1","Unknown ownership record");
-        for(const auto &entry:fs::directory_iterator(dest)) require(!isOutputLink(entry.path()) && entry.is_regular_file() && (entry.path().filename()=="vfs.dat" || entry.path().filename()=="vfs.zip" || entry.path().filename()=="livery-maker.json"),"Output contains unrelated files");
-        require(sha(read((dest/"vfs.dat").u8string()))==owner.at("dat_sha256") && sha(read((dest/"vfs.zip").u8string()))==owner.at("zip_sha256"),"Owned mod has been modified externally");
-    }
-    auto pair=archivePair(files);
-    metadata["tool"]="reriff-livery-maker-v1";metadata["dat_sha256"]=sha(pair.first);metadata["zip_sha256"]=sha(pair.second);
+    require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
+    if(fs::exists(dest))verifyOwnedMod(dest);
+    require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
+    for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
+    metadata["tool"]="reriff-livery-maker-v2";metadata["format"]="loose-v1";
+    metadata.erase("dat_sha256");metadata.erase("zip_sha256");
     metadata["resources"]=Json::array();metadata["sibling_resource_conflicts"]=Json::array();
     for(const auto &entry:files) {
         metadata["resources"].push_back({{"path",entry.first},{"sha256",sha(entry.second)}});
@@ -357,9 +412,8 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     require(!fs::exists(stage) && !fs::exists(backup),"Staging path already exists");require(fs::create_directory(stage),"Cannot create staging folder");
     bool moved=false;
     try {
-        write(stage/"vfs.dat",pair.first);write(stage/"vfs.zip",pair.second);save(stage/"livery-maker.json",metadata);
-        Archive check((stage/"vfs.zip").u8string());require(check.entries.size()==files.size(),"ZIP file count mismatch");
-        for(const auto &entry:check.entries)require(check.load(entry)==files.at(entry.name),"ZIP round-trip failed");
+        for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
+        save(stage/"livery-maker.json",metadata);verifyOwnedMod(stage);
         if(fs::exists(dest)) {fs::rename(dest,backup);moved=true;}
         fs::rename(stage,dest);if(moved)fs::remove_all(backup);
     } catch(...) { if(moved && !fs::exists(dest))fs::rename(backup,dest);fs::remove_all(stage);throw; }

@@ -23,6 +23,9 @@ class PaintConfig {
     }
 public:
     static constexpr const char *resource="scripts/config/paint_pc.cfg";
+    explicit PaintConfig(Bytes cfg):original_(std::move(cfg)),current_(original_) {(void)Config(original_).json();nodes_=u32(current_,12);strings_=20+nodes_*32;}
+    PaintConfig(Bytes cfg,Bytes lua,std::vector<PaintSelection> selections):PaintConfig(std::move(cfg)){lua_=std::move(lua);selections_=std::move(selections);}
+    void clearLivery(const PaintSelection &selection){auto offsets=values(selection,"livery",1);require(offsets.size()==1,"Missing native livery field");float value=-1;uint32_t bits;std::memcpy(&bits,&value,4);set32(current_,offsets[0],bits);}
     explicit PaintConfig(const Archive &archive):original_(asset(archive,"scripts/config/paint_PC.cfg")),current_(original_) {
         lua_=asset(archive,"scripts/config/paint_PC.luac");
         selections_=paintSelections(archive,displayNames(archive));
@@ -53,10 +56,15 @@ public:
         auto offsets=values(selection,"livery",1);require(offsets.size()==1,"Missing native livery field");
         float value=float(id);uint32_t bits;std::memcpy(&bits,&value,4);set32(current_,offsets[0],bits);
     }
+    static const std::vector<std::string> &appearanceFields(){static const std::vector<std::string> fields{"col0","col1","col2","colLerp0","colLerp1","reflAmbient","reflFalloff","reflStrength","specPower","specScale","specCol","alloysCol0","alloysCol1","alloysColLerp","livery"};return fields;}
+    static unsigned fieldCount(const std::string &field){return field=="col0"||field=="col1"||field=="col2"||field=="specCol"||field=="alloysCol0"||field=="alloysCol1"?3:1;}
+    void copyAppearance(const PaintSelection &from,const PaintSelection &to){
+        require(from.car==to.car,"Default paint must belong to the same car");Bytes next=current_;
+        for(const auto &field:appearanceFields()){auto source=values(from,field,fieldCount(field)),dest=values(to,field,fieldCount(field));require(source.size()==dest.size(),"Incompatible paint appearance fields");for(size_t i=0;i<source.size();i++)std::copy_n(current_.begin()+source[i],4,next.begin()+dest[i]);}
+        current_=std::move(next);
+    }
     void reset(const PaintSelection &selection) {
-        for(auto p:values(selection,"livery",1))std::copy_n(original_.begin()+p,4,current_.begin()+p);
-        for(auto *key:{"col0","col1","col2","specCol","alloysCol0","alloysCol1"})
-            for(auto p:values(selection,key,3))std::copy_n(original_.begin()+p,4,current_.begin()+p);
+        for(const auto &field:appearanceFields())for(auto p:values(selection,field,fieldCount(field)))std::copy_n(original_.begin()+p,4,current_.begin()+p);
     }
     // Extend the stock Lua 5.1 chunk just before its final RETURN. Preserve
     // all stock instructions/constants: shared constants must never be patched.
@@ -72,7 +80,7 @@ public:
         // functions or dynamic stack instructions. Refuse unfamiliar scripts.
         for(unsigned i=0;i+1<codeCount;i++) {
             auto instruction=u32(lua_,32+i*4),op=instruction&63;
-            require(op==1 || op==7 || op==9 || op==10 || (op==34 && ((instruction>>14)&511)!=0),"Unsupported paint Lua instruction");
+            require(op==1 || op==5 || op==6 || op==7 || op==9 || op==10 || (op==34 && ((instruction>>14)&511)!=0),"Unsupported paint Lua instruction");
         }
         auto constantCount=u32(lua_,constantsAt);size_t end=constantsAt+4;
         for(unsigned i=0;i<constantCount;i++) {
@@ -89,8 +97,8 @@ public:
         auto numberConstant=[&](float value){auto index=constantCount++;uint32_t bits;std::memcpy(&bits,&value,4);extraConstants.push_back(3);put32(extraConstants,bits);return index;};
         auto abx=[&](unsigned op,unsigned a,unsigned bx){require(bx<262144,"Too many Lua constants");put32(extraCode,op|(a<<6)|(bx<<14));};
         auto abc=[&](unsigned op,unsigned a,unsigned b,unsigned c){put32(extraCode,op|(a<<6)|(c<<14)|(b<<23));};
-        for(const auto &selection:selections_)for(auto *field:{"col0","col1","col2","specCol","alloysCol0","alloysCol1","livery"}) {
-            bool scalar=std::string(field)=="livery";
+        for(const auto &selection:selections_)for(const auto &field:appearanceFields()) {
+            bool scalar=fieldCount(field)==1;
             auto offsets=values(selection,field,scalar?1:3);bool edited=false;
             for(auto offset:offsets)if(u32(original_,offset)!=u32(current_,offset))edited=true;
             if(!edited)continue;

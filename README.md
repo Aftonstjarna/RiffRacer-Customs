@@ -1,6 +1,6 @@
 # RiffRacer Customs
 
-A graphical paint and PNG livery editor for Riff Racer, for Windows and Linux.
+A graphical car, paint, PNG livery and HUD editor for Riff Racer, for Windows and Linux.
 It is a separate authoring tool, not part of the ReRiff client/server packages.
 
 ## Windows
@@ -9,17 +9,18 @@ Download the Windows x64 ZIP from [Releases](https://github.com/Aftonstjarna/Rif
 Extract the entire ZIP, then launch **RiffRacer-Customs.exe**. GTK and its runtime
 dependencies are included; keep the DLLs, `lib` and `share` folders alongside it.
 Open the game folder containing `vfs.zip`, select a car and paint, and export a
-named mod folder. Copy that folder into the game's `mods` directory and restart.
+named mod folder. Exports use `assets/` and require ReRiff’s
+loose-asset loader. Copy that folder into the game's `mods` directory and restart.
 
 ## Linux
 
-Download `RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage` from
-[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.1.1),
+Download `RiffRacer-Customs-0.2.0-anylinux-x86_64.AppImage` from
+[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.2.0),
 make it executable in your file manager, and open it. Or run:
 
 ```sh
-chmod +x RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage
-./RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage
+chmod +x RiffRacer-Customs-0.2.0-anylinux-x86_64.AppImage
+./RiffRacer-Customs-0.2.0-anylinux-x86_64.AppImage
 ```
 
 The AnyLinux package includes GTK, glibc and fonts using

@@ -9,8 +9,11 @@ original game runtime, independently of the authoring implementation.
 import zipfile, struct, pathlib, json, sys
 src=pathlib.Path(sys.argv[1]); output=pathlib.Path(sys.argv[2])
 output.mkdir(parents=True, exist_ok=True)
-with zipfile.ZipFile(src/'vfs.zip') as z:
- b=z.read('scripts/config/paint_pc.cfg');(output/'expected.bin').write_bytes(z.read('scripts/config/paint_pc.luac'))
+if (src/'assets').is_dir():
+ b=(src/'assets/scripts/config/paint_pc.cfg').read_bytes();(output/'expected.bin').write_bytes((src/'assets/scripts/config/paint_pc.luac').read_bytes())
+else:
+ with zipfile.ZipFile(src/'vfs.zip') as z:
+  b=z.read('scripts/config/paint_pc.cfg');(output/'expected.bin').write_bytes(z.read('scripts/config/paint_pc.luac'))
 u=lambda o:struct.unpack_from('<I',b,o)[0];s=20+u(12)*32;checks=[]
 def walk(start,count,path=''):
  for j,i in enumerate(range(start,start+count)):

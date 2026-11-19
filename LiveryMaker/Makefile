@@ -7,12 +7,39 @@ EXEEXT ?=
 APP ?= reriff-livery-maker
 LIBS = -lpng -lz -lcrypto
 all: $(OUT)/$(APP)$(EXEEXT)
-$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
+$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp car_preview.hpp car_hud_preview.hpp mod_editor.hpp mod_appearance.hpp mod_names.hpp surface_snap.hpp attachment_editor.hpp multiplier_style.hpp model_import.hpp model_import_ui.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) main.cpp -o $@ $$(pkg-config --cflags --libs gtk+-3.0) $(LIBS) $(LDFLAGS)
 $(OUT)/test-livery$(EXEEXT): test.cpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test.cpp -o $@ $(LIBS) $(LDFLAGS)
-test: $(OUT)/test-livery$(EXEEXT)
+test: $(OUT)/test-livery$(EXEEXT) $(OUT)/test-model-import$(EXEEXT) $(OUT)/test-car-hud$(EXEEXT) $(OUT)/test-surface-snap$(EXEEXT)
 	$(OUT)/test-livery$(EXEEXT)
+	$(OUT)/test-model-import$(EXEEXT)
+	$(OUT)/test-car-hud$(EXEEXT)
+	$(OUT)/test-surface-snap$(EXEEXT)
 .PHONY: all test
+
+$(OUT)/test-mod-editor$(EXEEXT): test_mod_editor.cpp mod_editor.hpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_mod_editor.cpp -o $@ $(LIBS) $(LDFLAGS)
+
+$(OUT)/test-mod-appearance$(EXEEXT): test_mod_appearance.cpp mod_appearance.hpp mod_names.hpp mod_editor.hpp core.hpp paint.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_mod_appearance.cpp -o $@ $(LIBS) $(LDFLAGS)
+
+$(OUT)/test-surface-snap$(EXEEXT): test_surface_snap.cpp surface_snap.hpp mod_editor.hpp core.hpp paint.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_surface_snap.cpp -o $@ $(LIBS) $(LDFLAGS)
+
+$(OUT)/test-model-import$(EXEEXT): test_model_import.cpp model_import.hpp mod_editor.hpp mod_names.hpp mod_appearance.hpp core.hpp paint.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_model_import.cpp -o $@ $(LIBS) $(LDFLAGS)
+
+$(OUT)/test-multiplier$(EXEEXT): test_multiplier.cpp multiplier_style.hpp mod_editor.hpp core.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_multiplier.cpp -o $@ $(LIBS) $(LDFLAGS)
+
+$(OUT)/test-car-hud$(EXEEXT): test_car_hud.cpp car_hud_preview.hpp car_preview.hpp multiplier_style.hpp mod_appearance.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_car_hud.cpp -o $@ $$(pkg-config --cflags --libs cairo) $(LIBS) $(LDFLAGS)

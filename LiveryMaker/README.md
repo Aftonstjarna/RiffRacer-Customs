@@ -1,8 +1,7 @@
 # RiffRacer Customs editor guide
 
 A C++17/GTK3 authoring tool for replacing existing vehicle decals. It reuses
-`NativeLinux/native_assets.hpp` for TABT, DDS, model UVs and PNG output. Its
-archive writer ports the verified `packaging/native_archive.py` layout into C++.
+`NativeLinux/native_assets.hpp` for TABT, DDS, model UVs and PNG output. It exports loose native assets; ReRiff builds its VFS cache locally.
 The existing tools had no PNG-to-DDS encoder, archive exporter or authoring UI;
 those are intentional new tooling, not matching-source reconstruction.
 
@@ -47,7 +46,7 @@ checks do not change this preference.
    channel, without an additional premultiplication operation.
 4. View the encoded texture preview, original, or UV template. The checkerboard
    shows transparency. This is a 2D texture preview, not game shader rendering.
-5. Export into a named mod folder. The output contains `vfs.dat`, `vfs.zip`, and
+5. Export into a named mod folder. The output contains an `assets/` tree and
    `livery-maker.json` (tool ownership/provenance, not a required game manifest).
    Keep editable artwork separately using **Save artwork PNG**.
 
@@ -62,8 +61,10 @@ parameters are preserved; paint RGB colors can be changed as described below.
 
 Parent-directory symlinks (such as `/home` pointing to `/var/home`) are resolved
 before export. Existing unrelated folders, output-folder symlinks, extra files and externally changed owned
-archives are refused. Re-export requires the tool's ownership record and matching
-archive hashes. Files are built and checked in a sibling staging folder, then
+assets are refused. Re-export requires the tool's ownership record and matching
+resource hashes. Verified older tool-owned VFS packages are converted to loose
+assets when re-exported. Complete, hash-verified ReRiff caches are discarded on
+re-export and rebuilt at the next game start; unrelated files are refused. Files are built and checked in a sibling staging folder, then
 published together. During replacement the old folder is temporarily retained as
 `.previous-PID`; after a crash during that step, inspect that backup rather than
 deleting it. The program reports duplicate resource paths in sibling mod folders
@@ -80,16 +81,16 @@ blue, yellow and magenta markers retain the original base-level alpha before
 compression. The original configuration prices this pack at 7500; availability
 depends on your save. The tool does not unlock it.
 
-With ReRiff beta.11 or newer, fully quit the game and copy the entire folder to:
+With the ReRiff development loader that supports loose mods, fully quit the game
+and copy the entire folder to:
 
 ```text
 Riff Racer/mods/reriff-livery-alf-diagnostic/
-    vfs.dat
-    vfs.zip
+    assets/graphics/vehicles/decals/alf_01/batchtextures.brres
     livery-maker.json
 ```
 
-Do not copy either archive over the stock pair. Start the game and select the
+Keep the stock archive pair untouched. Start the game and select the
 ALF seventh paint. Check the garage and a race for the colored markers, correct
 transparency, seams, and distant appearance. Check another paint stays unchanged.
 Restart to confirm persistence. To undo, remove only this test mod folder and
@@ -177,3 +178,285 @@ selected car’s own UV model. IDs 1 through 99 are allocated without collisions
 PNG dimensions must match the displayed template dimensions. Pulse Arctic has passed garage, race, isolation and removal checks. Other cars
 still need visual in-game verification; the 2D preview is not a shader preview.
 Separate mods that edit the full paint configuration do not merge.
+
+## Painted car preview
+
+The default view renders the selected car's original body and wheel geometry.
+Body, highlight and wheel color controls update the preview immediately. Drag
+the car horizontally to rotate it; scroll to zoom. The default **Painted + Livery** view combines paint and the current encoded
+decal on the car. Choose **Car preview** for paint alone, or **Texture preview**,
+**Original**, or **UV template** for the existing flat artwork views.
+
+The car preview uses approximate studio lighting and material colors, not the
+original game's D3D shaders, reflections or finish. Decals use the original UV0 coordinates with filtered alpha blending on painted
+body materials; stock, imported and newly added decals update live. This is
+an authoring approximation, not a reproduction of the original decal shader. No game meshes are bundled;
+the preview reads them from your selected game folder.
+
+## Loose mod compatibility
+
+New exports require ReRiff’s loose-asset loader. Older releases that only load
+VFS pairs cannot load these exports. The folder must be named `assets/`, not
+`vfs/`. Zip the exported mod folder for sharing: there is no nested VFS ZIP.
+Do not include `.reriff-cache-*` files generated after installing a mod.
+
+Individual caches stay inside their mod folder. If the native archive-slot limit
+is exceeded, ReRiff creates the overflow merge directly in `mods/`. The editor
+exports native resource files and does not create or manage merged archives.
+Disabled mods under `mods/.disabled/` are excluded from conflict detection.
+Fully close the game before re-exporting an installed mod.
+
+The original `native_probe.c` fixture mounts VFS pairs. For a loose export, run
+ReRiff’s cache builder before using that archive-level fixture; do not pass the
+`assets/` directory directly as a native archive.
+
+### Import an existing car mod and adjust its HUD
+
+Open the original game folder, then choose **Import mod folder** (the folder
+containing `assets/`) or **Import mod ZIP** (one loose mod per archive). This
+supports native EADB car mods such as the existing Impala test package. It is
+not a GLB importer. The imported files remain untouched.
+
+Choose the car and attachment: **Multiplier**, **Boost meter**, or a **Boost
+outlet**. Change X/Y/Z position, pitch/yaw/roll, and local width/height/depth
+scale. Rotations are world-axis deltas from the imported orientation, applied
+pitch, then yaw, then roll; reset restores that attachment's imported transform.
+The body preview uses approximate paint shading. Orange highlights the selected
+attachment; cyan marks other attachments. Outlets show their local +Z direction.
+Guides draw through geometry so they remain selectable/readable; they do not
+simulate the game's HUD artwork, particle behavior, or clipping. Check the final
+placement in-game. Orbit, elevation and zoom help inspect placement.
+
+**Export adjusted copy** writes a new mod folder, preserving unrelated resources
+and attribution. Existing destinations are refused. Disable the old mod before
+installing the adjusted copy, then restart the game. Changes are kept only for
+the current editing session until exported; reimport the exported copy to resume.
+ReRiff generated archive caches are omitted. Symlinked input files and unsafe
+archive paths are refused. Imports are limited to 512 MiB total and 256 MiB per
+file. Paint/livery-only imports use the original game geometry and attachment nodes.
+Custom geometry is loaded from the mod when present.
+
+The reusable node writer validates the native model, patches only selected
+48-byte transforms and recalculated file bounds, then decodes the result again.
+No-op and reset preserve the original bytes exactly. It does not rewrite mesh
+geometry, materials, collision, or native configuration.
+
+Native-file integration checks (test output directory must not exist):
+
+```
+make ../build/livery-maker/test-mod-editor
+../build/livery-maker/test-mod-editor MOD_FOLDER ORIGINAL_GAME/vfs.zip NEW_TEST_DIRECTORY
+```
+
+Attachment preview mouse and keyboard controls:
+
+- Left-drag a marker's center to select and move it in the view plane.
+- With the preview focused, press **G** to move, **R** to rotate, or **S** to scale,
+  then move the pointer. Press **X**, **Y**, or **Z** to constrain the operation.
+- **R X** adjusts pitch, **R Y** yaw, and **R Z** roll. Unconstrained **R** also
+  adjusts roll. Rotation follows the existing world-axis delta fields.
+- Hold **Shift** while moving for fine adjustment. **Enter** or left-click applies
+  a keyboard operation; **~** (or the unshifted backtick key) cancels it. Releasing a direct
+  marker drag applies it. Leaving the preview cancels an unfinished operation.
+- Numeric fields update with every adjustment. Shortcuts apply only while the
+  preview has focus, leaving normal text editing in the numeric fields intact.
+
+The raster, attachment guides, marker picking and view-plane dragging share the
+same aspect-preserving projection, including in maximized windows.
+
+Camera navigation in the attachment preview:
+
+- Hold the **middle mouse button** and drag to pan.
+- **Scroll** to zoom; smooth trackpad scrolling is supported too.
+- Hold the **right mouse button** and drag horizontally to orbit, vertically to
+  change elevation. The camera sliders stay synchronized.
+- **Reset view** restores the centered camera and default zoom.
+
+Camera navigation changes only the view. While an attachment transform is active,
+**~** cancels it. Wheel zoom remains available while dragging attachments,
+panning or orbiting, and zooms around the pointer. Middle/right camera drags
+wait until an attachment transform is applied or cancelled.
+
+Press **~** (or backtick) with the preview focused to cancel an active attachment
+adjustment. When no adjustment is active, the same key resets the camera view.
+Escape remains an alternative for cancelling an active adjustment.
+
+**Ctrl+Z** undoes attachment changes in the imported-mod editor. A completed drag
+or keyboard transform is one undo step; numeric changes and attachment resets
+are also recorded. If a transform is still active, Ctrl+Z cancels that transform
+first. History follows the edited car/attachment and retains the last 200 steps
+for the current import session. Camera navigation is not part of edit history.
+
+### Imported paints, liveries, names and defaults
+
+Import opens the paint/livery editor. **Adjust HUD / boosters** opens placement
+controls and guides only when requested; turn it off to return to paint preview.
+
+- Choose a paint, then change its six body/highlight/wheel colors.
+- **Import PNG livery** adds or replaces artwork for that paint. Use the displayed
+  exact dimensions; **Save PNG / blank template** exports artwork or a transparent
+  template. Each edited paint gets an unused texture ID, preserving shared stock
+  or imported liveries. **Remove livery** clears its decal. **Reset paint and
+  livery** restores that paint's imported appearance.
+- Edit the **In-game car name** and **In-game paint name**, then click **Apply
+  names**. This updates English localized strings while retaining internal IDs.
+  Names sharing a localization token change together. UTF-8 names are converted
+  to the native UTF-16 string bank; unrelated strings remain intact.
+- **Use this paint as default** copies the selected appearance into the native
+  first paint slot. Colors, finish parameters and livery are copied, while the
+  first slot's name and price stay unchanged. Its decal gets a separate texture
+  ID. Existing saves retain their chosen paint; select the first paint in-game
+  to test the new default appearance. Reset the first paint to undo this copy.
+- **Export adjusted copy** includes all pending paint, livery, name and placement
+  changes, retaining the imported mod's other files. Paint changes include both
+  native CFG and Lua resources. Changes survive switching paints/cars during the
+  session; export before closing. Reimport an exported copy to continue editing.
+
+Paint configs from another mod still do not merge at game load. The preview uses
+approximate shading and decal blending, not all original material textures.
+Ctrl+Z history currently covers attachment edits; use paint reset for appearance.
+The new default/name combinations need visual in-game confirmation.
+
+Imported-mod integration checks:
+
+```
+make ../build/livery-maker/test-mod-appearance
+../build/livery-maker/test-mod-appearance IMPALA_MOD ORIGINAL_GAME/vfs.zip NEW_OUTPUT
+python verify_imported_paint.py NEW_OUTPUT
+python verify_imported_paint.py NEW_OUTPUT-second
+```
+
+The last checks independently evaluate the supported straight-line Lua 5.1
+instructions and compare every paint value with CFG. They do not execute the
+game or claim in-game visual validation.
+
+For linked booster placement, select a boost outlet and enable **Link booster /
+NOS movement**. Choose **All outlets** or **Selected outlet + partner**, then
+choose the second outlet. Numeric XYZ edits, direct dragging and G moves apply
+the same translation to the linked outlets, preserving their spacing. Rotation
+and scale still affect the selected outlet only. HUD markers are never linked.
+Ctrl+Z undoes a linked move as one action; tilde cancels the entire active group
+move. Linking is an editor-session setting, not an in-game effect setting.
+
+Right-drag captures the point under the pointer as its orbit pivot. Clicking on
+the rendered model uses that surface's depth; empty space uses the view plane.
+The captured point stays at the initial mouse location while changing orbit or
+elevation. Wheel zoom still works during the drag.
+
+**Snap to car** in the placement controls aligns the selected HUD element or
+boost outlet to a nearby exposed body triangle. It points local +Z outward,
+preserves scale, and adds 0.02 model units of clearance. HUD panels also sample
+a 5×5 footprint to lift the panel over nearby curvature. Wheels, effects and
+identified interior materials are excluded; candidate surfaces must have an
+unobstructed outward ray. Place the element near the intended panel first.
+
+Snapping affects only the selected element, even with linked NOS movement on.
+Ctrl+Z restores its previous placement. This is a local surface fit, not a
+curved decal projection: inspect the preview and check the exported result
+in-game, especially around open windows, seams and sharply curved bodywork.
+
+### One main editor
+
+Normal startup now opens the unified paint/livery/attachment editor for stock
+cars using the remembered game folder. On the first run, choose the game folder.
+The old standalone paint window is no longer part of the normal interface.
+
+The top toolbar contains **Open game folder**, **Import mod folder**, **Import
+mod ZIP**, and **Stock cars / new mod**. Opening a different source replaces the
+current session after prompting about any unexported changes. Window size and
+maximized state carry over. Importing no longer opens a second editor window.
+
+The sidebar also includes **Add PNG decal**, **Make test livery**, and **Save UV
+template**, alongside paint colors, names, defaults, PNG import/save and reset.
+The preview selector supports Painted + Livery, Car preview, Texture preview,
+Original artwork, and UV template. Placement stays behind Adjust HUD / boosters.
+**Export mod** writes the current stock edits or the combined imported-mod edits.
+
+
+### Static model import (development build)
+
+Use **Import 3D model** in the unified editor, select an embedded GLB 2.0 file,
+and review the source orientation, scale, donor and part roles. The initial scale
+fits the source length to the median supported stock visual length; it is an
+editable estimate, not a units measurement. **Suggest donor by width** ranks
+supported stock collision widths against the oriented model at that scale;
+height and length break ties. It does not compare collision shape or handling.
+
+Assign each primitive to painted body, glass, metal/chrome, interior/plastic,
+wheels or ignore. Suggestions use names and must be reviewed. **Fit to donor**
+uses four wheel groups to fit wheelbase and track, or body length if no wheels
+are assigned. This may change proportions. With Fit off, source scale is retained
+and the model is centered and grounded. Donor wheel pivots are retained; their
+alignment with the body must be checked in game. Without imported wheels, stock
+wheel geometry is retained.
+
+**Preview conversion** validates and displays the resulting native geometry.
+Changing settings invalidates that preview. **Create mod and edit** exports to a
+new folder and opens it in the existing paint/livery/HUD/booster editor. Source
+files and the game installation are not modified. The current operation replaces
+the selected donor's existing garage slot; it does not create a new slot. Export
+subsequent editor adjustments to another folder and install only that final copy.
+
+This first converter deliberately uses original donor materials and textures.
+Source PBR properties, textures and vertex colors are not imported. UV0 is retained,
+UV1 duplicates UV0, supplied normals are transformed correctly (or generated when
+absent), and tangent bases are regenerated. Missing UVs become zero UVs, so add a
+proper UV layout before authoring a PNG livery. Required glTF extensions,
+compressed/sparse/normalized accessors, animations, skins and morph targets are
+refused. External .gltf files and FBX are not supported; export a static GLB first.
+
+The native writer copies donor material/parameter bytes and mesh record templates,
+rebuilds geometry, links and bounds, and decodes its output for validation. It
+supports understood 24/36-byte generated vertex layouts and enforces the native
+16-bit absolute index limit; simplify an oversized model instead of truncating it.
+Donors without the required named body/four-wheel layout or compatible car-paint
+layout are omitted. A missing material role stops conversion with an explanation.
+The donor's original collision, driving setup, animation, shadow and effect meshes
+are retained. Use the placement editor for HUD/NOS adjustments; collision, effects,
+wheel animation and visual alignment require an in-game test.
+
+`model-import.json` records input/donor/output hashes, conversion options, part
+assignments, dimensions and limitations. Include the model author's attribution
+and license with any mod you distribute. The importer does not infer usage rights.
+
+Validation commands (new output folders required):
+
+```sh
+make -C LiveryMaker test
+build/livery-maker/test-model-import GAME_FOLDER MODEL.glb NEW_MOD_FOLDER
+GDK_BACKEND=x11 xvfb-run -a build/livery-maker/reriff-livery-maker \
+  --smoke-model-import GAME_FOLDER MODEL.glb NEW_MOD_FOLDER
+```
+
+The GUI smoke check captures `NEW_MOD_FOLDER.png`, tests stale-preview rejection,
+exports a converted mod and reimports it. The integration test checks all donor
+candidates and verifies name editing, paint access, unchanged collision and
+no-overwrite behavior. Offline conversion success is not an in-game rendering claim.
+
+
+### Multiplier bracket style
+
+Under **Adjust HUD / boosters**, choose **Four brackets** or **Two top brackets
+(Pulse)**. A small preview shows the native bracket artwork. This applies to the
+selected car across all paints; it does not move or resize the multiplier. Choose
+**Keep imported / original** to discard the style edit and restore the source
+atlas. Switching cars retains pending choices. Export the mod to save them.
+
+The editor copies only the original native multiplier DDS payload. The boost
+meter, other HUD data and attachment transforms remain unchanged. A mod containing
+only a bracket style change can also be imported. Unknown/incompatible HUD atlas
+layouts are refused rather than recompressed. Regression command:
+
+```sh
+make -C LiveryMaker ../build/livery-maker/test-multiplier
+build/livery-maker/test-multiplier GAME_FOLDER
+```
+
+
+**Show car HUD** is enabled by default in car preview modes. It draws a static
+×4 multiplier and 70% boost meter from the current car's HUD atlas, using the
+current attachment position, rotation and scale. Changing bracket style updates
+this preview immediately. Turning placement controls off removes the guides but
+keeps the HUD artwork visible. Uncheck Show car HUD for a clean car view.
+The HUD is depth-tested against the car to expose clipping. Track tint, gameplay
+visibility and animated glow are not simulated; confirm the final result in game.

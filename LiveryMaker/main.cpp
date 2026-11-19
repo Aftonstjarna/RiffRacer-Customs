@@ -1,4 +1,4 @@
-#include "paint.hpp"
+#include "attachment_editor.hpp"
 #include <gtk/gtk.h>
 #include <memory>
 using namespace livery;
@@ -74,7 +74,8 @@ struct App {
     std::map<std::string,std::string> names;
     std::vector<PaintSelection> paints;std::vector<GtkWidget*> editing;size_t chosen=0;
     Image original,art,preview;std::unique_ptr<Model> model;
-    bool edited=false;std::string view="Preview";
+    bool edited=false;std::string view="Painted + Livery";
+    double carYaw=.65,carZoom=1,dragX=0;bool dragging=false;
     std::string gameFolder;
     void message(const std::string &s) {gtk_label_set_text(GTK_LABEL(status),s.c_str());}
     void error(const std::string &s) {auto *d=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_ERROR,GTK_BUTTONS_CLOSE,"%s",s.c_str());gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}
@@ -216,7 +217,7 @@ struct App {
         Json metadata={{"paint_source_sha256",sha(paintConfig->original())},{"paint_configuration_modified",paintConfig->changed()},{"selected_car",paints.at(chosen).car},{"selected_pack_index",paints.at(chosen).packIndex}};
         auto meta=publishMod(files,metadata,out);
         if(!meta["sibling_resource_conflicts"].empty())error("Resource conflicts in the export parent folder: "+meta["sibling_resource_conflicts"].dump()+". Resolve these before testing; native volume priority decides which wins.");
-        message("Exported: "+out.u8string()+"\nCopy the whole folder into the game's mods directory, then fully restart. Preview is not proof of in-game rendering.");
+        message("Exported: "+out.u8string()+"\nRequires ReRiff with loose-mod support. Copy the whole folder into the game's mods directory, then fully restart.");
     }
     void uv(cairo_t *cr,double size) {
         if(!model)return;
@@ -227,14 +228,8 @@ struct App {
     }
     void draw(cairo_t *cr,int w,int h) {
         cairo_set_source_rgb(cr,0.10,0.11,0.13);cairo_paint(cr);
-        if(!selected) {
-            if(paintConfig) {
-                int i=0;
-                for(auto &control:colorButtons) {
-                    auto rgb=paintConfig->get(paints.at(chosen),control.first,3);if(rgb.size()!=3)continue;
-                    cairo_set_source_rgb(cr,rgb[0]/255.,rgb[1]/255.,rgb[2]/255.);cairo_rectangle(cr,24+(i%3)*(w-48)/3.,24+(i/3)*(h-48)/2.,(w-72)/3.,(h-72)/2.);cairo_fill(cr);++i;
-                }
-            }
+        if(view=="Painted + Livery" || view=="Car preview" || !selected) {
+            if(model && paintConfig)drawCar(cr,*model,*paintConfig,paints.at(chosen),w,h,carYaw,carZoom,view=="Painted + Livery" && selected?&preview:nullptr);
             return;
         }
         double size=std::max(1,std::min(w,h)-24);cairo_translate(cr,(w-size)/2,(h-size)/2);cairo_rectangle(cr,0,0,size,size);cairo_clip(cr);
@@ -262,6 +257,9 @@ struct App {
         g_signal_connect(window,"destroy",G_CALLBACK(gtk_main_quit),nullptr);
         auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(box),14);gtk_container_add(GTK_CONTAINER(window),box);
         auto *title=gtk_label_new("Edit car paints and liveries");gtk_box_pack_start(GTK_BOX(box),title,false,false,0);
+        auto *imports=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),imports,false,false,0);
+        button(imports,"Import mod folder",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose mod folder containing assets",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
+        button(imports,"Import mod ZIP",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose loose mod ZIP",GTK_FILE_CHOOSER_ACTION_OPEN);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
         auto *row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row,false,false,0);
         button(row,"Open game folder",this,[](App &a){auto p=a.choose("Game folder containing vfs.zip",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!p.empty())a.load(p);});
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Car"),false,false,0);
@@ -285,12 +283,17 @@ struct App {
         }
         button(actions,"Reset this paint",this,[](App &a){a.resetPaint();});
         auto *row2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row2,false,false,0);
-        mode=gtk_combo_box_text_new();for(auto *v:{"Preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(mode),v);gtk_combo_box_set_active(GTK_COMBO_BOX(mode),0);gtk_box_pack_start(GTK_BOX(row2),mode,false,false,0);
+        mode=gtk_combo_box_text_new();for(auto *v:{"Painted + Livery","Car preview","Texture preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(mode),v);gtk_combo_box_set_active(GTK_COMBO_BOX(mode),0);gtk_box_pack_start(GTK_BOX(row2),mode,false,false,0);
         g_signal_connect(mode,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);auto *s=gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(a.mode));if(s){a.view=s;g_free(s);}gtk_widget_queue_draw(a.canvas);}),this);
         editing.push_back(button(row2,"Save artwork PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Save editable artwork",GTK_FILE_CHOOSER_ACTION_SAVE,"artwork.png");if(!p.empty())savePNG(fs::u8path(p),a.art);}));
         editing.push_back(button(row2,"Save UV template",this,[](App &a){auto p=a.choose("Save all-mesh UV0 template",GTK_FILE_CHOOSER_ACTION_SAVE,"uv-template.png");if(!p.empty())a.saveUV(p);}));
-        auto *note=gtk_label_new("Paint swatches and texture preview only • Native lighting/finish is not simulated • UV0 includes all meshes");gtk_label_set_line_wrap(GTK_LABEL(note),true);gtk_box_pack_start(GTK_BOX(box),note,false,false,0);
+        auto *note=gtk_label_new("Drag the car to rotate • Scroll to zoom • Preview uses approximate lighting and decal blending");gtk_label_set_line_wrap(GTK_LABEL(note),true);gtk_box_pack_start(GTK_BOX(box),note,false,false,0);
         canvas=gtk_drawing_area_new();gtk_widget_set_size_request(canvas,320,320);gtk_box_pack_start(GTK_BOX(box),canvas,true,true,0);g_signal_connect(canvas,"draw",G_CALLBACK(+[](GtkWidget *w,cairo_t *cr,gpointer p)->gboolean{static_cast<App*>(p)->draw(cr,gtk_widget_get_allocated_width(w),gtk_widget_get_allocated_height(w));return FALSE;}),this);
+        gtk_widget_add_events(canvas,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK|GDK_POINTER_MOTION_MASK|GDK_SCROLL_MASK|GDK_SMOOTH_SCROLL_MASK);
+        g_signal_connect(canvas,"button-press-event",G_CALLBACK(+[](GtkWidget*,GdkEventButton *e,gpointer p)->gboolean{auto &a=*static_cast<App*>(p);if(e->button!=1)return FALSE;a.dragging=true;a.dragX=e->x;return TRUE;}),this);
+        g_signal_connect(canvas,"button-release-event",G_CALLBACK(+[](GtkWidget*,GdkEventButton*,gpointer p)->gboolean{static_cast<App*>(p)->dragging=false;return TRUE;}),this);
+        g_signal_connect(canvas,"motion-notify-event",G_CALLBACK(+[](GtkWidget*,GdkEventMotion *e,gpointer p)->gboolean{auto &a=*static_cast<App*>(p);if(!a.dragging)return FALSE;a.carYaw+=(e->x-a.dragX)*.012;a.dragX=e->x;gtk_widget_queue_draw(a.canvas);return TRUE;}),this);
+        g_signal_connect(canvas,"scroll-event",G_CALLBACK(+[](GtkWidget*,GdkEventScroll *e,gpointer p)->gboolean{auto &a=*static_cast<App*>(p);double d=e->direction==GDK_SCROLL_SMOOTH?e->delta_y:(e->direction==GDK_SCROLL_UP?-1:1);a.carZoom=std::clamp(a.carZoom*std::exp(-d*.12),.5,2.5);gtk_widget_queue_draw(a.canvas);return TRUE;}),this);
         status=gtk_label_new("Open your game folder, select a car/livery, then import artwork or generate a test livery.");gtk_label_set_line_wrap(GTK_LABEL(status),true);gtk_label_set_selectable(GTK_LABEL(status),true);gtk_box_pack_start(GTK_BOX(box),status,false,false,0);
         for(auto *widget:editing)gtk_widget_set_sensitive(widget,false);
         gtk_widget_show_all(window);
@@ -299,6 +302,14 @@ struct App {
 int main(int argc,char **argv) {
     try {
         prepareRuntime();
+        if(argc==5&&std::string(argv[1])=="--smoke-model-import"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());ModelImportDialog(stock,fs::u8path(argv[3])).run(nullptr,fs::u8path(argv[4]));std::cout<<"Model import dialog, validation, export and reimport passed\n";return 0;}
+
+        if(argc==4&&std::string(argv[1])=="--smoke-unified") {gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());AttachmentEditor(stock,{}).smokeUnified(fs::u8path(argv[3]));return 0;}
+        if(argc==5 && std::string(argv[1])=="--smoke-mod-attachments") {
+            gtk_init(&argc,&argv);Archive archive((fs::u8path(argv[2])/"vfs.zip").u8string());
+            AttachmentEditor(archive,fs::u8path(argv[3])).smoke(nullptr,fs::u8path(argv[4]));
+            std::cout<<"PASS imported mod GUI edit/export\n";return 0;
+        }
         if(argc==3 && std::string(argv[1])=="--smoke-package") {
             gtk_init(&argc,&argv);App app;app.build();
             while(gtk_events_pending()){gtk_main_iteration();}
@@ -310,6 +321,42 @@ int main(int argc,char **argv) {
             auto *color=gtk_color_chooser_dialog_new("Color test",GTK_WINDOW(app.window));gtk_widget_show_all(color);
             while(gtk_events_pending()){gtk_main_iteration();}gtk_widget_destroy(color);
             std::cout<<"PASS packaged GTK window, file chooser, color chooser and PNG output\n";return 0;
+        }
+        if(argc==4 && std::string(argv[1])=="--smoke-livery-preview") {
+            gtk_init(&argc,&argv);App app;app.build();app.load(argv[2],false);
+            auto out=fs::u8path(argv[3]);fs::create_directories(out);
+            auto render=[&](const fs::path &path){auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,900,600);auto *cr=cairo_create(surface);app.draw(cr,900,600);cairo_destroy(cr);saveSurface(surface,path);cairo_surface_destroy(surface);return read(path.u8string());};
+            app.chooseResource("alf_01");app.view="Car preview";auto painted=render(out/"paint-only.png");
+            app.view="Painted + Livery";require(render(out/"carmine-stock.png")!=painted,"Stock decal missing from car preview");
+            Image transparent=app.original;std::fill(transparent.pixels.begin(),transparent.pixels.end(),0);app.update(transparent);
+            require(render(out/"transparent.png")==painted,"Transparent decal obscures paint");
+            auto diagnosticImage=diagnostic(app.selected->texture);savePNG(out/"input.png",diagnosticImage);
+            app.update(loadPNG(out/"input.png",app.selected->texture.width,app.selected->texture.height));
+            require(render(out/"carmine-custom.png")!=painted,"Imported PNG missing from car preview");
+            for(const auto &id:targets(*app.archive)) {
+                bool selectable=false;for(const auto &p:app.paints)if(p.resource==id)selectable=true;
+                if(!selectable)continue;
+                app.chooseResource(id);render(out/(id+".png"));
+            }
+            gtk_combo_box_set_active_id(GTK_COMBO_BOX(app.carCombo),"alf");app.addDecal();app.update(diagnostic(app.selected->texture));render(out/"arctic-added.png");
+            app.resetPaint();require(!app.selected,"Reset retained added decal");render(out/"arctic-reset.png");
+            std::cout<<"PASS stock/imported/added 3D decals, transparent alpha, reset, and all selectable stock textures\n";return 0;
+        }
+        if(argc==4 && std::string(argv[1])=="--smoke-car") {
+            gtk_init(&argc,&argv);App app;app.build();app.load(argv[2],false);
+            auto out=fs::u8path(argv[3]);fs::create_directories(out);std::set<std::string> seen;
+            auto render=[&](const fs::path &path){auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,900,600);auto *cr=cairo_create(surface);app.draw(cr,900,600);cairo_destroy(cr);saveSurface(surface,path);cairo_surface_destroy(surface);return read(path.u8string());};
+            auto baseline=render(out/"pulse-original.png");
+            for(const auto &control:app.colorButtons) {
+                app.paintConfig->set(app.paints.at(app.chosen),control.first,{255,0,100});
+                require(render(out/(control.first+".png"))!=baseline,"Color does not affect preview: "+control.first);
+                app.paintConfig->reset(app.paints.at(app.chosen));
+            }
+            for(const auto &paint:app.paints)if(seen.insert(paint.car).second) {
+                gtk_combo_box_set_active_id(GTK_COMBO_BOX(app.carCombo),paint.car.c_str());render(out/(paint.car+".png"));
+            }
+            app.carYaw+=1;render(out/"rotated.png");
+            std::cout<<"PASS painted preview for "<<seen.size()<<" cars and all six color controls\n";return 0;
         }
         if(argc==3 && std::string(argv[1])=="--smoke-all-decals") {
             gtk_init(&argc,&argv);App app;app.build();app.load(argv[2],false);unsigned count=0;
@@ -379,6 +426,12 @@ int main(int argc,char **argv) {
             gtk_init(&argc,&argv);App app;app.build();require(app.restore() && app.model,"Saved folder did not reopen");
             std::cout<<"PASS reopened "<<app.gameFolder<<'\n';return 0;
         }
-        gtk_init(&argc,&argv);App app;app.build();if(argc==2)app.guard([&]{app.load(argv[1]);});else app.restore();gtk_main();return 0;
+        gtk_init(&argc,&argv);std::string folder=argc==2?argv[1]:rememberedFolder();fs::path mod;int width=1100,height=760;bool maximized=false;
+        for(;;){
+            if(folder.empty()||!fs::exists(fs::u8path(folder)/"vfs.zip")){auto *chooser=gtk_file_chooser_dialog_new("Open your Riff Racer game folder",nullptr,GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,nullptr);if(gtk_dialog_run(GTK_DIALOG(chooser))!=GTK_RESPONSE_ACCEPT){gtk_widget_destroy(chooser);return 0;}auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));folder=value;g_free(value);gtk_widget_destroy(chooser);}
+            try{Archive stock((fs::u8path(folder)/"vfs.zip").u8string());AttachmentEditor editor(stock,mod);try{rememberFolder(folder);}catch(const std::exception &e){std::cerr<<"Could not remember game folder: "<<e.what()<<'\n';}editor.windowWidth=width;editor.windowHeight=height;editor.maximized=maximized;editor.run(nullptr);if(!editor.restartRequested)return 0;width=editor.windowWidth;height=editor.windowHeight;maximized=editor.maximized;
+                if(editor.requestedAction==0){folder=editor.requestedPath;mod.clear();}else mod=editor.requestedAction==3?fs::path{}:fs::u8path(editor.requestedPath);
+            }catch(const std::exception &e){auto *d=gtk_message_dialog_new(nullptr,GTK_DIALOG_MODAL,GTK_MESSAGE_ERROR,GTK_BUTTONS_CLOSE,"%s",e.what());gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);folder.clear();mod.clear();}
+        }
     }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }
