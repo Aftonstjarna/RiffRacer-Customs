@@ -13,11 +13,6 @@
 - Export added textures together with the required native paint configuration.
 - Retain added decals during the editing session and include them in exports.
 - Support up to 99 decal IDs per car, with collision checks.
-- Include a Windows x64 portable ZIP and Linux x86-64 AnyLinux AppImage.
-
-Validation: creation, export and reset passed for all 82 eligible paints.
-Pulse Arctic passed in-game garage, race, paint-isolation and removal tests.
-The original game Lua runtime passed all 3,373 exported paint-value checks.
 
 Limitations: other cars still need visual in-game testing. PNGs must match the
 shown texture dimensions. Export edits before closing the editor. Separate
