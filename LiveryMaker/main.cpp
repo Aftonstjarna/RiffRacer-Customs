@@ -64,6 +64,9 @@ static void rememberFolder(const std::string &folder) {
     require(ok,message);
 }
 struct App {
+    GtkWidget *addDecalButton{};
+    struct AddedDecal {Target target;Image artwork;};
+    std::map<size_t,AddedDecal> addedDecals;
     GtkWidget *window{},*carCombo{},*combo{},*status{},*canvas{},*mode{};
     std::unique_ptr<PaintConfig> paintConfig;GtkWidget *exportButton{};bool updatingColors=false;
     std::vector<std::pair<std::string,GtkWidget*>> colorButtons;
@@ -90,7 +93,7 @@ struct App {
         require(!selections.empty(),"No paint selections in this game archive");
         auto config=std::make_unique<PaintConfig>(*next);
         names=std::move(labels);paints=std::move(selections);paintConfig=std::move(config);
-        selected.reset();model.reset();archive=std::move(next);
+        addedDecals.clear();selected.reset();model.reset();archive=std::move(next);
         gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(carCombo));
         std::set<std::string> seen;
         for(const auto &paint:paints)if(seen.insert(paint.car).second)
@@ -126,7 +129,11 @@ struct App {
         selected.reset();edited=false;original={};art={};preview={};
         for(auto *widget:editing)gtk_widget_set_sensitive(widget,false);
         model=std::make_unique<Model>(decodeModel(asset(*archive,"graphics/vehicles/"+paint.car+"/lod0_livery.bdae")));
-        if(paint.resource.empty()) {
+        if(addedDecals.count(chosen)) {
+            auto &entry=addedDecals.at(chosen);selected=std::make_unique<Target>(entry.target);
+            original=decodeDDS(selected->texture);update(entry.artwork);
+            for(auto *widget:editing)gtk_widget_set_sensitive(widget,true);
+        } else if(paint.resource.empty()) {
             describe();
         } else {
             selected=std::make_unique<Target>(target(*archive,paint.resource));
@@ -134,8 +141,28 @@ struct App {
             for(auto *widget:editing)gtk_widget_set_sensitive(widget,true);
             describe();
         }
+        gtk_widget_set_sensitive(addDecalButton,paint.resource.empty() && !selected);
         loadColors();gtk_widget_set_sensitive(exportButton,true);
         gtk_widget_queue_draw(canvas);
+    }
+    void addDecal() {
+        require(archive && paintConfig,"Open a game folder first");
+        std::set<std::string> reserved;for(const auto &item:addedDecals)reserved.insert(item.second.target.name);
+        auto decal=newDecal(*archive,paints.at(chosen),reserved);
+        auto blank=decodeDDS(decal.texture);std::fill(blank.pixels.begin(),blank.pixels.end(),0);
+        paintConfig->setLivery(paints.at(chosen),unsigned(std::stoi(decal.name.substr(4))));
+        addedDecals.emplace(chosen,AddedDecal{std::move(decal),std::move(blank)});select();
+    }
+    std::map<std::string,Bytes> exportFiles() const {
+        std::map<std::string,Bytes> files;
+        if(paintConfig->changed() || !selected)files=paintConfig->files();
+        for(const auto &item:addedDecals)files[lower(item.second.target.member)]=editedBatch(item.second.target,&item.second.artwork);
+        if(selected && (edited || !paintConfig->changed()))files[lower(selected->member)]=editedBatch(*selected,edited?&art:nullptr);
+        return files;
+    }
+    void resetPaint() {
+        if(!paintConfig)return;
+        paintConfig->reset(paints.at(chosen));addedDecals.erase(chosen);select();
     }
     void loadColors() {
         updatingColors=true;
@@ -160,13 +187,13 @@ struct App {
         std::string info=paint.carName+" — "+paint.paintName;
         if(selected) {
             auto &t=selected->texture;info+=" • "+std::to_string(t.width)+" × "+std::to_string(t.height)+" • "+t.fourcc;
-            info+="\nDecal texture is shared by: "+paintNames(*selected,names);
+            info+=addedDecals.count(chosen)?"\nNew decal for this paint only (experimental; verify in-game).":"\nDecal texture is shared by: "+paintNames(*selected,names);
         } else info+="\nNative paint colors only; this paint has no separate PNG decal.";
-        info+=paintConfig->changed()?"\nPaint color edits pending. Export includes the full paint configuration and runtime script; other paint-config mods do not merge.":"\nPaint colors unchanged. Color edits apply to the selected paint only.";
+        info+=paintConfig->changed()?"\nPaint/decal edits pending. Export includes the full paint configuration and runtime script; other paint-config mods do not merge.":"\nPaint colors unchanged. Color edits apply to the selected paint only.";
         if(edited)info+="\nPNG artwork edited; export also includes the decal texture.";
         message(info);
     }
-    void update(Image im) {art=std::move(im);auto t=selected->texture;t.dds=encodeDDS(t,art);preview=decodeDDS(t);edited=true;describe();gtk_widget_queue_draw(canvas);}
+    void update(Image im) {art=std::move(im);auto t=selected->texture;t.dds=encodeDDS(t,art);preview=decodeDDS(t);edited=true;if(addedDecals.count(chosen))addedDecals.at(chosen).artwork=art;describe();gtk_widget_queue_draw(canvas);}
     void exportPackage() {
         require(bool(paintConfig),"Open a game folder first");
         if(selected && (edited || !paintConfig->changed()) && selected->packs.size()>1) {
@@ -175,7 +202,7 @@ struct App {
             bool yes=gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_YES;gtk_widget_destroy(dialog);if(!yes)return;
         }
         if(paintConfig->changed()) {
-            auto *dialog=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Paint export contains the full native paint configuration and runtime script, including all pending color edits. Other paint-config mods will conflict rather than merge. Continue?");
+            auto *dialog=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Paint export contains the full native paint configuration and runtime script, including all pending color and added-decal edits. Other paint-config mods will conflict rather than merge. Continue?");
             bool yes=gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_YES;gtk_widget_destroy(dialog);if(!yes)return;
         }
         auto p=choose("Choose a parent folder for the exported mod",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(p.empty())return;
@@ -185,9 +212,7 @@ struct App {
         require(name!="." && name!=".." && name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")==std::string::npos,"Use letters, numbers, hyphens or underscores for the folder name");
         auto out=fs::u8path(p)/name;
         if(fs::exists(out)) {auto *q=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Replace this tool's previous export at %s?",out.u8string().c_str());bool yes=gtk_dialog_run(GTK_DIALOG(q))==GTK_RESPONSE_YES;gtk_widget_destroy(q);if(!yes)return;}
-        std::map<std::string,Bytes> files;
-        if(paintConfig->changed() || !selected)files=paintConfig->files();
-        if(selected && (edited || !paintConfig->changed()))files[lower(selected->member)]=editedBatch(*selected,edited?&art:nullptr);
+        auto files=exportFiles();
         Json metadata={{"paint_source_sha256",sha(paintConfig->original())},{"paint_configuration_modified",paintConfig->changed()},{"selected_car",paints.at(chosen).car},{"selected_pack_index",paints.at(chosen).packIndex}};
         auto meta=publishMod(files,metadata,out);
         if(!meta["sibling_resource_conflicts"].empty())error("Resource conflicts in the export parent folder: "+meta["sibling_resource_conflicts"].dump()+". Resolve these before testing; native volume priority decides which wins.");
@@ -248,6 +273,7 @@ struct App {
         editing.push_back(button(actions,"Import PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Import exact-size PNG artwork",GTK_FILE_CHOOSER_ACTION_OPEN);if(!p.empty())a.update(loadPNG(fs::u8path(p),a.selected->texture.width,a.selected->texture.height));}));
         editing.push_back(button(actions,"Make test livery",this,[](App &a){require(bool(a.selected),"Open a game folder first");a.update(diagnostic(a.selected->texture));}));
         exportButton=button(actions,"Export mod",this,[](App &a){a.exportPackage();});gtk_widget_set_sensitive(exportButton,false);
+        addDecalButton=button(actions,"Add PNG decal",this,[](App &a){a.addDecal();});gtk_widget_set_sensitive(addDecalButton,false);
         auto *paintGrid=gtk_grid_new();gtk_grid_set_column_spacing(GTK_GRID(paintGrid),12);gtk_grid_set_row_spacing(GTK_GRID(paintGrid),6);gtk_box_pack_start(GTK_BOX(box),paintGrid,false,false,0);
         const char *keys[]={"col0","col1","col2","specCol","alloysCol0","alloysCol1"};
         const char *labels[]={"Body color 1","Body color 2","Body color 3","Highlight color","Wheel color 1","Wheel color 2"};
@@ -257,7 +283,7 @@ struct App {
             gtk_grid_attach(GTK_GRID(paintGrid),label,(i%3)*2,i/3,1,1);gtk_grid_attach(GTK_GRID(paintGrid),color,(i%3)*2+1,i/3,1,1);
             colorButtons.push_back({keys[i],color});g_signal_connect(color,"color-set",G_CALLBACK(+[](GtkColorButton *button,gpointer p){auto &a=*static_cast<App*>(p);a.guard([&]{a.changeColor(GTK_WIDGET(button));});}),this);
         }
-        button(actions,"Reset this paint",this,[](App &a){if(!a.paintConfig)return;a.paintConfig->reset(a.paints.at(a.chosen));a.loadColors();a.describe();gtk_widget_queue_draw(a.canvas);});
+        button(actions,"Reset this paint",this,[](App &a){a.resetPaint();});
         auto *row2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row2,false,false,0);
         mode=gtk_combo_box_text_new();for(auto *v:{"Preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(mode),v);gtk_combo_box_set_active(GTK_COMBO_BOX(mode),0);gtk_box_pack_start(GTK_BOX(row2),mode,false,false,0);
         g_signal_connect(mode,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);auto *s=gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(a.mode));if(s){a.view=s;g_free(s);}gtk_widget_queue_draw(a.canvas);}),this);
@@ -284,6 +310,36 @@ int main(int argc,char **argv) {
             auto *color=gtk_color_chooser_dialog_new("Color test",GTK_WINDOW(app.window));gtk_widget_show_all(color);
             while(gtk_events_pending()){gtk_main_iteration();}gtk_widget_destroy(color);
             std::cout<<"PASS packaged GTK window, file chooser, color chooser and PNG output\n";return 0;
+        }
+        if(argc==3 && std::string(argv[1])=="--smoke-all-decals") {
+            gtk_init(&argc,&argv);App app;app.build();app.load(argv[2],false);unsigned count=0;
+            for(size_t i=0;i<app.paints.size();i++) {
+                const auto &paint=app.paints[i];
+                gtk_combo_box_set_active_id(GTK_COMBO_BOX(app.carCombo),paint.car.c_str());
+                gtk_combo_box_set_active_id(GTK_COMBO_BOX(app.combo),std::to_string(i).c_str());
+                require(bool(gtk_widget_get_sensitive(app.addDecalButton))==paint.resource.empty(),"Incorrect Add PNG decal availability");
+                if(paint.resource.empty()) {
+                    app.addDecal();require(app.selected && app.selected->car==paint.car,"Wrong car after adding decal");
+                    require(app.exportFiles().size()==3,"Incomplete new-decal export");app.resetPaint();++count;
+                }
+            }
+            std::cout<<"PASS Add PNG decal enabled, created, exported and reset for all "<<count<<" undecorated paints\n";return 0;
+        }
+        if(argc==4 && std::string(argv[1])=="--test-added-decal") {
+            gtk_init(&argc,&argv);App app;app.build();app.load(argv[2],false);
+            require(app.paints.at(app.chosen).paintName=="Arctic","Expected Pulse Arctic");
+            app.addDecal();require(app.selected->name=="alf_03","Expected isolated Pulse decal ID");
+            app.update(diagnostic(app.selected->texture));auto expected=app.art.pixels;
+            app.chooseResource("alf_01");app.selectCar();
+            require(app.selected && app.art.pixels==expected,"Added artwork lost on reselection");
+            auto out=fs::u8path(argv[3]);fs::create_directories(out);
+            publishMod(app.exportFiles(),{{"test","Pulse Arctic new decal"}},out/"customs-arctic-decal-test");
+            savePNG(out/"arctic-decal.png",app.art);app.saveUV((out/"arctic-uv.png").u8string());
+            while(gtk_events_pending())gtk_main_iteration();
+            auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(app.window),gtk_widget_get_allocated_height(app.window));
+            auto *cr=cairo_create(surface);gtk_widget_draw(app.window,cr);cairo_destroy(cr);saveSurface(surface,out/"editor.png");cairo_surface_destroy(surface);
+            app.resetPaint();require(!app.selected && !app.paintConfig->changed() && app.addedDecals.empty(),"Reset left a decal assignment");
+            std::cout<<"PASS Arctic new decal, reselection, complete export and reset\n";return 0;
         }
         // Headless mode uses exactly the same C++ encoding/export pipeline.
         if(argc>=2 && std::string(argv[1])=="--export") {

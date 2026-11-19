@@ -161,3 +161,19 @@ fixture mods path and `scripts\config\paint_pc.luac` resource path (check.lua is
 the final optional argument). Run only against an isolated fixture/prefix.
 The earlier CFG-only green tests remained blue in the owner's game; runtime Lua
 export corrects the missing resource and subsequently passed owner garage/race testing.
+
+## Experimental: add a decal to an undecorated paint
+
+Select a paint such as **Pulse → Arctic**, click **Add PNG decal**, then use
+**Import PNG** or **Make test livery**. Export the mod as usual. New textures
+use an unused ID and the same car's original decal format/UV layout. The
+export includes the native paint configuration and Lua assignment, plus every
+new decal created during this session. Switching paints retains added decals;
+**Reset this paint** removes its added decal and restores its original colors.
+
+Available for every selectable paint without a decal. Cars without a stock
+decal use a blank 1024×1024 DXT5 texture container based on Pulse, with the
+selected car’s own UV model. IDs 1 through 99 are allocated without collisions.
+PNG dimensions must match the displayed template dimensions. Pulse Arctic has passed garage, race, isolation and removal checks. Other cars
+still need visual in-game verification; the 2D preview is not a shader preview.
+Separate mods that edit the full paint configuration do not merge.

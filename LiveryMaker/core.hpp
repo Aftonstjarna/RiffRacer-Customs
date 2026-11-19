@@ -212,7 +212,7 @@ inline std::string displayLabel(const Target &t,const std::map<std::string,std::
     return localized(names,"car_"+t.car)+" — "+paintNames(t,names);
 }
 inline Target target(const Archive &archive,const std::string &name) {
-    require(name.size()==6 && name[3]=='_' && name[4]=='0' && name[5]>='1' && name[5]<='9',"Invalid livery ID");
+    require(name.size()==6 && name[3]=='_' && name[4]>='0' && name[4]<='9' && name[5]>='0' && name[5]<='9' && name.substr(4)!="00","Invalid livery ID");
     for(int i=0;i<3;i++) require(std::isalnum(static_cast<unsigned char>(name[i])),"Invalid car ID");
     std::string member="graphics/vehicles/decals/"+name+"/batchTextures.brres";
     Bytes batch=asset(archive,member); auto textures=decodeTextures(batch);
@@ -254,6 +254,31 @@ inline std::vector<PaintSelection> paintSelections(const Archive &archive,const 
         }
     }
     return result;
+}
+// Prefer a same-car texture container; otherwise use the stock Pulse container.
+// UVs always come from the selected car, never from the container donor. Reserve an ID
+// absent from both the archive and every configured paint; never overwrite a stock decal.
+inline Target newDecal(const Archive &archive,const PaintSelection &paint,const std::set<std::string> &reserved={}) {
+    require(paint.resource.empty(),"This paint already has a decal");
+    auto all=targets(archive);std::string source;
+    std::set<std::string> used(all.begin(),all.end());used.insert(reserved.begin(),reserved.end());
+    auto config=cfgValue(Json::parse(Config(asset(archive,"scripts/config/paint_PC.cfg")).json()));
+    for(const auto &pack:config.at("Paints").at(paint.car)) {
+        std::ostringstream name;name<<paint.car<<'_'<<std::setw(2)<<std::setfill('0')<<pack.value("livery",-1);used.insert(name.str());
+    }
+    for(const auto &id:all)if(id.substr(0,3)==paint.car){source=id;break;}
+    if(source.empty())source="alf_01"; // Standard 1024x1024 DXT5 container; no donor geometry.
+    std::string id;
+    for(unsigned n=1;n<=99;n++){auto candidate=paint.car+"_"+(n<10?"0":"")+std::to_string(n);if(!used.count(candidate)){id=candidate;break;}}
+    require(!id.empty(),"No unused decal ID available for this car");
+    auto result=target(archive,source);
+    // Single-texture TABT's string pool starts immediately after its entry.
+    require(u32(result.batch,12)>=59 && text(result.batch,52,7)==source,"Unsupported decal name pool");
+    std::copy(id.begin(),id.end(),result.batch.begin()+52);
+    result.car=paint.car;result.name=id;result.member="graphics/vehicles/decals/"+id+"/batchTextures.brres";
+    result.texture=decodeTextures(result.batch).at(0);
+    require(result.texture.name==id,"New decal name mismatch");
+    result.packs=Json::array({{{"index",paint.packIndex},{"name",paint.paintName}}});return result;
 }
 // Port of packaging/native_archive.py's verified tree and file-record layout.
 inline std::pair<Bytes,Bytes> archivePair(const std::map<std::string,Bytes> &files) {

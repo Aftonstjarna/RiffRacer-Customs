@@ -65,6 +65,36 @@ int main(int argc,char **argv) {
         paintConfig.reset(selectionList[0]);require(paintConfig.changed(),"Reset discarded another paint's edit");
         paintConfig.reset(selectionList[6]);require(paintConfig.bytes()==baseline,"Reset did not restore original bytes");
         require(paintConfig.luaBytes()==luaBaseline,"Reset did not restore original Lua");
+        auto added=newDecal(original,selectionList[0]);
+        require(added.name=="alf_03" && added.texture.name=="alf_03","New decal collides with stock texture");
+        require(newDecal(original,selectionList[1],{"alf_03"}).name=="alf_04","New decals collide with each other");
+        rejects([&]{newDecal(original,selectionList[6]);});
+        require(newDecal(original,selectionList[0],{"alf_03","alf_04","alf_05","alf_06","alf_07","alf_08","alf_09"}).name=="alf_10","Two-digit ID allocation failed");
+        std::set<std::string> full;for(unsigned n=1;n<=99;n++)full.insert("alf_"+std::string(n<10?"0":"")+std::to_string(n));
+        rejects([&]{newDecal(original,selectionList[0],full);});
+        paintConfig.setLivery(selectionList[0],3);
+        auto liveryOffset=paintConfig.values(selectionList[0],"livery",1).at(0);
+        for(size_t i=0;i<baseline.size();i++)if(i<liveryOffset || i>=liveryOffset+4)
+            require(baseline[i]==paintConfig.bytes()[i],"Decal assignment changed unrelated config bytes");
+        require(paintConfig.get(selectionList[0],"livery",1)==std::vector<float>{3},"Livery field not assigned");
+        require(u32(paintConfig.luaBytes(),28)==u32(luaBaseline,28)+8,"Scalar Lua assignment instruction count");
+        paintConfig.reset(selectionList[0]);require(paintConfig.luaBytes()==luaBaseline,"Decal reset changed original Lua");
+        unsigned supported=0;std::set<std::string> reserved;
+        for(const auto &paint:selectionList)if(paint.resource.empty()) {
+            auto created=newDecal(original,paint,reserved);reserved.insert(created.name);
+            require(created.car==paint.car && created.name.substr(0,3)==paint.car,"Wrong new decal car");
+            require(decodeTextures(created.batch)[0].name==created.name,"Invalid new native texture name");
+            auto model=decodeModel(asset(original,"graphics/vehicles/"+paint.car+"/lod0_livery.bdae"));
+            require(!model.meshes.empty(),"Missing selected-car UV model");
+            paintConfig.setLivery(paint,unsigned(std::stoi(created.name.substr(4))));
+            require(paintConfig.get(paint,"livery",1).at(0)==std::stoi(created.name.substr(4)),"New livery assignment failed");
+            ++supported;
+        }
+        require(supported==std::count_if(selectionList.begin(),selectionList.end(),[](const auto &p){return p.resource.empty();}),"Missing undecorated paint coverage");
+        (void)paintConfig.luaBytes();
+        for(const auto &paint:selectionList)paintConfig.reset(paint);
+        require(paintConfig.bytes()==baseline && paintConfig.luaBytes()==luaBaseline,"All-paint reset failed");
+        std::cout<<"PASS isolated decal IDs, scalar-only CFG/Lua changes, reset, and "<<supported<<" eligible paints\n";
         paintConfig.set(selectionList[0],"col0",{25,230,50});
         auto decal=target(original,"alf_01");
         auto combined=root/"combined";

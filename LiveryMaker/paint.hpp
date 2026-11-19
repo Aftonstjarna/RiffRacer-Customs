@@ -48,7 +48,13 @@ public:
         for(float v:value)require(std::isfinite(v) && v>=0 && v<=255,"Paint color must be in 0–255 range");
         for(size_t i=0;i<3;i++){uint32_t bits;std::memcpy(&bits,&value[i],4);set32(current_,offsets[i],bits);}
     }
+    void setLivery(const PaintSelection &selection,unsigned id) {
+        require(selection.resource.empty() && id>=1 && id<=99,"New decals require an undecorated paint and ID 1–99");
+        auto offsets=values(selection,"livery",1);require(offsets.size()==1,"Missing native livery field");
+        float value=float(id);uint32_t bits;std::memcpy(&bits,&value,4);set32(current_,offsets[0],bits);
+    }
     void reset(const PaintSelection &selection) {
+        for(auto p:values(selection,"livery",1))std::copy_n(original_.begin()+p,4,current_.begin()+p);
         for(auto *key:{"col0","col1","col2","specCol","alloysCol0","alloysCol1"})
             for(auto p:values(selection,key,3))std::copy_n(original_.begin()+p,4,current_.begin()+p);
     }
@@ -83,14 +89,19 @@ public:
         auto numberConstant=[&](float value){auto index=constantCount++;uint32_t bits;std::memcpy(&bits,&value,4);extraConstants.push_back(3);put32(extraConstants,bits);return index;};
         auto abx=[&](unsigned op,unsigned a,unsigned bx){require(bx<262144,"Too many Lua constants");put32(extraCode,op|(a<<6)|(bx<<14));};
         auto abc=[&](unsigned op,unsigned a,unsigned b,unsigned c){put32(extraCode,op|(a<<6)|(c<<14)|(b<<23));};
-        for(const auto &selection:selections_)for(auto *field:{"col0","col1","col2","specCol","alloysCol0","alloysCol1"}) {
-            auto offsets=values(selection,field,3);bool edited=false;
+        for(const auto &selection:selections_)for(auto *field:{"col0","col1","col2","specCol","alloysCol0","alloysCol1","livery"}) {
+            bool scalar=std::string(field)=="livery";
+            auto offsets=values(selection,field,scalar?1:3);bool edited=false;
             for(auto offset:offsets)if(u32(original_,offset)!=u32(current_,offset))edited=true;
             if(!edited)continue;
             abx(5,0,stringConstant("Paints"));
             abx(1,1,stringConstant(selection.car));abc(6,0,0,1);
             abx(1,1,numberConstant(float(selection.packIndex+1)));abc(6,0,0,1);
-            abx(1,1,stringConstant(field));abc(6,0,0,1);
+            abx(1,1,stringConstant(field));
+            if(scalar) {
+                abx(1,2,numberConstant(f32(current_,offsets[0])));abc(9,0,1,2);continue;
+            }
+            abc(6,0,0,1);
             for(unsigned channel=0;channel<3;channel++) {
                 abx(1,1,numberConstant(float(channel+1)));
                 abx(1,2,numberConstant(f32(current_,offsets[channel])));abc(9,0,1,2);
