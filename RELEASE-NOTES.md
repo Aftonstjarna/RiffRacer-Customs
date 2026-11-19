@@ -1,3 +1,31 @@
+# RiffRacer Customs 0.1.1
+
+## In-game summary
+
+- Add PNG decals to paints that previously had none.
+- Keep new decals when switching between paints in the editor.
+- Reset a paint to remove its added decal and restore its colors.
+
+## Full release notes
+
+- Enable **Add PNG decal** for all 82 selectable paints without decals.
+- Give each added decal its own unused texture ID, preserving stock liveries.
+- Export added textures together with the required native paint configuration.
+- Retain added decals during the editing session and include them in exports.
+- Support up to 99 decal IDs per car, with collision checks.
+- Include a Windows x64 portable ZIP and Linux x86-64 AnyLinux AppImage.
+
+Validation: creation, export and reset passed for all 82 eligible paints.
+Pulse Arctic passed in-game garage, race, paint-isolation and removal tests.
+The original game Lua runtime passed all 3,373 exported paint-value checks.
+
+Limitations: other cars still need visual in-game testing. PNGs must match the
+shown texture dimensions. Export edits before closing the editor. Separate
+paint-configuration mods do not merge. The preview does not simulate in-game
+lighting, and this update does not add new garage slots.
+
+---
+
 # RiffRacer Customs 0.1.0
 
 ## In-game summary

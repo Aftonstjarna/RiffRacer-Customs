@@ -13,13 +13,13 @@ named mod folder. Copy that folder into the game's `mods` directory and restart.
 
 ## Linux
 
-Download `RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage` from
-[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.1.0),
+Download `RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage` from
+[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.1.1),
 make it executable in your file manager, and open it. Or run:
 
 ```sh
-chmod +x RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage
-./RiffRacer-Customs-0.1.0-anylinux-x86_64.AppImage
+chmod +x RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage
+./RiffRacer-Customs-0.1.1-anylinux-x86_64.AppImage
 ```
 
 The AnyLinux package includes GTK, glibc and fonts using
