@@ -453,10 +453,15 @@ conversion with an explanation.
 **Fit collision hull** (default on) maps the donor collision hull to the imported
 wheel width and body length/roof height, keeps the donor's ground clearance, and
 updates the hull's broadphase bounds. Hull topology and collision surface data
-stay the donor's, and `collision.btinfo` is unchanged. The donor's driving setup,
-animation, shadow and effect meshes are retained. Use the placement editor for
-HUD/NOS adjustments; collision, effects, wheel animation, texture orientation and
-visual alignment require an in-game test.
+stay the donor's, and `collision.btinfo` is unchanged.
+
+**Rebuild effect shells** (default on) generates the `zone_front`, `electric` and
+`zone_back` shells from the imported exterior, simplifies them to the donor
+effect budgets, offsets them outward and projects cylindrical UVs. The donor
+effect materials and activation remain; the projected fade is experimental. The
+donor's driving setup, animation and shadow meshes are retained. Use the
+placement editor for HUD/NOS adjustments; collision, glow, clipping, wheel
+animation, texture orientation and visual alignment require an in-game test.
 
 `model-import.json` records input/donor/output hashes, conversion options, part
 assignments, dimensions and limitations. Include the model author's attribution
