@@ -1,3 +1,37 @@
+# RiffRacer Customs 0.3.0-beta.4
+
+## In-game summary
+
+- Move the preview selector into the main toolbar.
+- Keep the sidebar scrollbar clear of its controls.
+
+## Full release notes
+
+- Move the **Painted + Livery** preview selector from the left sidebar into the
+  top toolbar, between **Paint** and **Adjust HUD / boosters**. All five preview
+  modes are unchanged and still update the preview immediately.
+- Shorten the toolbar update button to **Updates…** so the added selector still
+  fits the default window at 100% scale. The installed version, channel,
+  release notes and verification details remain in the update window.
+- Give the sidebar's vertical scrollbar its own gutter with spacing on both
+  sides, and widen the sidebar by that gutter so the controls keep their
+  previous width and no horizontal scrollbar appears.
+- Disconnect the updater cleanly when the editor window closes.
+- Keep the stable and beta update channels, package verification and install
+  behavior from 0.3.0-beta.3 unchanged.
+
+Validation: updater, origin, model import, HUD, snapping and export tests pass.
+The unified-editor smoke test passes, and the toolbar measures 1076 px inside
+the default 1100 px window. Windows, Linux and AnyLinux packages are built and
+smoke-tested; both packaged update windows are checked in CI.
+
+Limitations: the wider sidebar takes 20 px more of the default window; drag the
+divider to adjust it. Preview rendering and its approximate lighting are
+unchanged. Install this release from the update window on 0.3.0-beta.3 or later, or
+manually from the release page.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.3
 
 ## In-game summary
