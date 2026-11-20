@@ -329,6 +329,7 @@ inline void installPackage(const fs::path &package) {
         require(false, "Cannot replace the running AppImage (" + error.message() +
                            "). Install the update manually.");
     }
+    fs::remove(package, error);
     relaunch(target);
 #endif
 }
