@@ -395,7 +395,7 @@ public:
         updates_=std::make_unique<update::UpdatePanel>(CUSTOMS_VERSION,[this]{return confirmUpdate();},[]{std::exit(0);});
         updates_->buildButton(top);
         auto *paned=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);gtk_box_pack_start(GTK_BOX(content),paned,true,true,5);
-        auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_widget_set_size_request(scroll,285,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
+        auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_scrolled_window_set_overlay_scrolling(GTK_SCROLLED_WINDOW(scroll),false);auto *verticalBar=gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(scroll));if(verticalBar){gtk_widget_set_margin_start(verticalBar,4);gtk_widget_set_margin_end(verticalBar,4);}gtk_widget_set_size_request(scroll,305,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
         auto *controls=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(controls),8);gtk_container_add(GTK_CONTAINER(scroll),controls);
         buildMigration(controls);
         buildFallback(controls);
