@@ -472,10 +472,19 @@ names into all eight string banks; turn it off to update only US and GB. When th
 GLB contains author, licence or source metadata, the package also includes an
 `ATTRIBUTION.txt`.
 
-The donor's driving setup, animation and shadow meshes are retained. Use the
-placement editor for HUD/NOS adjustments; collision, glow, clipping, paint slots,
-wheel animation, texture orientation and visual alignment require an in-game
-test.
+**Fit shadow and garage box** (default on) scales the donor ground shadow and the
+garage selection box to the imported wheel width and body length/height.
+
+**Add as a new car** uses the authored three-letter ID from the import dialog
+(default: the donor ID). It must have a stock name token, for example `dod`; the
+ReRiff composer remaps it to the next free native slot and keeps its assets,
+paint table, origin mapping and name namespace separate. The composer allows at
+most nine paint packs per car; the extra paint is added only when the donor is
+below that limit.
+
+The donor's driving setup and animation are retained. Use the placement editor
+for HUD/NOS adjustments; collision, glow, clipping, paint slots, wheel animation,
+texture orientation and visual alignment require an in-game test.
 
 `model-import.json` records input/donor/output hashes, conversion options, part
 assignments, dimensions and limitations. Include the model author's attribution

@@ -4,6 +4,7 @@
 #include "texture_encode.hpp"
 #include "decimate.hpp"
 #include "config_author.hpp"
+#include <optional>
 #include <functional>
 namespace livery::importer {
 // Static glTF 2.0 input. No executable helpers, external URIs or asset downloads.
@@ -55,7 +56,7 @@ inline std::vector<Donor> donors(const Archive&a,P source){auto names=displayNam
 inline void floatAt(Bytes&b,size_t at,double x){require(std::isfinite(x)&&std::abs(x)<1e9,"Invalid native float");float f=float(x);uint32_t bits;std::memcpy(&bits,&f,4);set32(b,at,bits);}
 inline void putFloat(Bytes&b,double x){size_t p=b.size();b.resize(p+4);floatAt(b,p,x);}
 inline uint16_t toHalf(double x){require(std::isfinite(x)&&std::abs(x)<=65504,"Native half-float overflow");bool negative=x<0;x=std::abs(x);unsigned sign=negative?0x8000:0;if(x<std::ldexp(1.,-14))return uint16_t(sign|unsigned(std::lround(std::ldexp(x,24))));int e;double f=std::frexp(x,&e);unsigned mant=unsigned(std::lround((f*2-1)*1024));int exp=e+14;if(mant==1024){mant=0;exp++;}require(exp<31,"Native half-float overflow");return uint16_t(sign|(exp<<10)|mant);}
-struct Options {enum class Quality {Light,Vanilla,High,Full};double scale=1;int yaw=0;bool zUp=false,fit=true,decimate=true,fitCollision=true,buildEffects=true,neutralMask=true,addPaint=true;std::string paintName="Black";bool allLocaleNames=true;Quality quality=Quality::Vanilla;};
+struct Options {enum class Quality {Light,Vanilla,High,Full};double scale=1;int yaw=0;bool zUp=false,fit=true,decimate=true,fitCollision=true,buildEffects=true,neutralMask=true,addPaint=true;std::string paintName="Black";bool allLocaleNames=true,fitShadow=true;Quality quality=Quality::Vanilla;};
 inline unsigned qualityTextureSize(unsigned base,const std::string &category,Options::Quality quality){
  if(quality==Options::Quality::Light)return std::min(base,512u);
  if(quality==Options::Quality::High)return std::max(base,1024u);
@@ -220,11 +221,11 @@ inline std::pair<std::string,std::string> newPaintToken(const Archive &archive,c
 inline Json configValue(const Json &node){auto type=node.at("type").get<unsigned>();if(type==0||type==1)return node.at("value");if(type==2){Json out=Json::array();for(auto &child:node.at("value"))out.push_back(configValue(child));return out;}throw std::runtime_error("Unsupported paint config field");}
 inline Json paintPackObject(const Json &pack){Json out=Json::object();for(auto &field:pack.at("value"))out[field.at("name").get<std::string>()]=configValue(field);return out;}
 struct PaintPackResult {Bytes cfg;size_t index;Json pack;};
-inline PaintPackResult addPaintPack(const Bytes &cfg,const std::string &car,const std::string &token){
- auto roots=Json::parse(Config(cfg).json());auto &paints=configNamed(roots,"Paints");auto &carNode=configNamed(paints["value"],car);auto &carTable=carNode["value"];require(carTable.is_array()&&!carTable.empty(),"Missing car paint table");
+inline std::optional<PaintPackResult> addPaintPack(const Bytes &cfg,const std::string &car,const std::string &token){
+ auto roots=Json::parse(Config(cfg).json());auto &paints=configNamed(roots,"Paints");auto &carNode=configNamed(paints["value"],car);auto &carTable=carNode["value"];require(carTable.is_array()&&!carTable.empty(),"Missing car paint table");if(carTable.size()>=9)return std::nullopt;
  Json pack;double darkest=1e300;for(auto &candidate:carTable){auto &fields=candidate["value"];double sum=0;for(const char *name:{"col0","col1","col2"}){auto &field=configNamed(fields,name);for(auto &channel:field["value"])sum+=channel["value"].get<double>();}if(sum<darkest){darkest=sum;pack=candidate;}}
  require(!pack.is_null(),"Missing paint pack");auto &fields=pack["value"];configSet(fields,"packName",token);configSet(fields,"livery",-1.0);configSet(fields,"packPrice",1.0);for(const char *name:{"col0","col1","col2"}){auto &field=configNamed(fields,name);for(auto &channel:field["value"])channel["value"]=2.0;}
- size_t index=carTable.size();carTable.push_back(pack);return {configEncode(roots),index,paintPackObject(pack)};
+ size_t index=carTable.size();carTable.push_back(pack);return PaintPackResult{configEncode(roots),index,paintPackObject(pack)};
 }
 
 inline Texture neutralPaintMask(){
@@ -250,20 +251,54 @@ inline Bytes fitCollision(const Bytes &original,double targetXL,double targetXH,
  }
  return out;
 }
-inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,const Options&o,const fs::path&destination,const std::string&name,bool overwrite=true,const std::string&packageId={},const Plan *planOverride=nullptr){
- auto original=stockAsset(archive,"graphics/vehicles/"+donor.id+"/lod0_livery.bdae");Plan plan=planOverride?*planOverride:defaultPlan(s,donor.id);if(!planOverride)for(auto &binding:plan.materials)binding.size=qualityTextureSize(binding.size,binding.category,o.quality);std::vector<Texture> atlasTextures;
+inline Bytes clonePaintCar(const Bytes &cfg,const std::string &donor,const std::string &target){
+ auto roots=Json::parse(Config(cfg).json());auto &paints=configNamed(roots,"Paints");auto &list=paints["value"];auto &source=configNamed(list,donor);Json clone=source;clone["name"]=target;clone["hash"]=configNameHash(target);for(auto &node:list)if(node["name"]==target){node=clone;return configEncode(roots);}list.push_back(clone);return configEncode(roots);
+}
+
+inline Bytes fitShadow(const Bytes &model,double xl,double xh,double zl,double zh){
+ auto out=model;uint32_t sa=u32(model,84),va=u32(model,92);P lo{1e30,1e30,1e30},hi{-1e30,-1e30,-1e30};
+ for(uint32_t i=0;i<u32(model,24);i++){size_t r=sa+size_t(i)*48;uint32_t stride=u32(model,r+4),fv=u32(model,r+8),vc=u32(model,r+12);for(uint32_t j=0;j<vc;j++){size_t p=va+(size_t(fv)+j)*stride;P v{f32(model,p),f32(model,p+4),f32(model,p+8)};for(int k=0;k<3;k++){lo[k]=std::min(lo[k],v[k]);hi[k]=std::max(hi[k],v[k]);}}}
+ if(!(hi[0]>lo[0]&&hi[2]>lo[2]&&xh>xl&&zh>zl))return model;
+ double sx=(xh-xl)/(hi[0]-lo[0]),sz=(zh-zl)/(hi[2]-lo[2]);Bounds bounds;
+ for(uint32_t i=0;i<u32(model,24);i++){size_t r=sa+size_t(i)*48;uint32_t stride=u32(model,r+4),fv=u32(model,r+8),vc=u32(model,r+12);for(uint32_t j=0;j<vc;j++){size_t p=va+(size_t(fv)+j)*stride;P v{f32(model,p),f32(model,p+4),f32(model,p+8)};v[0]=xl+(v[0]-lo[0])*sx;v[2]=zl+(v[2]-lo[2])*sz;floatAt(out,p,v[0]);floatAt(out,p+8,v[2]);bounds.add(v);}}
+ auto size=bounds.size(),center=bounds.center();for(int k=0;k<3;k++){floatAt(out,100+k*4,size[k]);floatAt(out,112+k*4,center[k]);}floatAt(out,124,std::sqrt(dotP(size,size))/2);return out;
+}
+
+inline Bytes fitGarageBox(const Bytes &model,double xl,double xh,double yl,double yh,double zl,double zh){
+ auto out=model;uint32_t nc=u32(model,20),na=u32(model,76),sa=u32(model,84),va=u32(model,92),la=u32(model,88);
+ for(uint32_t i=0;i<nc;i++){size_t n=na+size_t(i)*156;if(text(model,n,32)!="BoundingBox")continue;int first=int32_t(u32(model,n+120));if(first<0)return model;
+  std::vector<int> meshes;size_t cursor=la+size_t(first)*2;for(;;){require(cursor+2<=va,"Unterminated garage box links");int link=int16_t(u16(model,cursor));cursor+=2;if(link<0)break;meshes.push_back(link);}
+  P lo{1e30,1e30,1e30},hi{-1e30,-1e30,-1e30};for(int mi:meshes){size_t r=sa+size_t(mi)*48;uint32_t stride=u32(model,r+4),fv=u32(model,r+8),vc=u32(model,r+12);for(uint32_t j=0;j<vc;j++){size_t p=va+(size_t(fv)+j)*stride;P v{f32(model,p),f32(model,p+4),f32(model,p+8)};for(int k=0;k<3;k++){lo[k]=std::min(lo[k],v[k]);hi[k]=std::max(hi[k],v[k]);}}}
+  if(!(hi[0]>lo[0]&&hi[1]>lo[1]&&hi[2]>lo[2]&&xh>xl&&yh>yl&&zh>zl))return model;
+  double s[3]={(xh-xl)/(hi[0]-lo[0]),(yh-yl)/(hi[1]-lo[1]),(zh-zl)/(hi[2]-lo[2])},center[3]={double(xl+xh)/2,double(yl+yh)/2,double(zl+zh)/2},local[3]={double(lo[0]+hi[0])/2,double(lo[1]+hi[1])/2,double(lo[2]+hi[2])/2};
+  for(int k=0;k<12;k++)floatAt(out,n+32+k*4,0);
+  floatAt(out,n+32,s[0]);floatAt(out,n+48,s[1]);floatAt(out,n+64,s[2]);
+  for(int k=0;k<3;k++)floatAt(out,n+68+k*4,center[k]-s[k]*local[k]);
+  return out;
+ }
+ return model;
+}
+
+inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,const Options&o,const fs::path&destination,const std::string&name,bool overwrite=true,const std::string&packageId={},const Plan *planOverride=nullptr,const std::string &authoredId={}){
+ auto original=stockAsset(archive,"graphics/vehicles/"+donor.id+"/lod0_livery.bdae");std::string authored=authoredId.empty()?donor.id:authoredId;
+ require(authored.size()==3&&std::all_of(authored.begin(),authored.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='0'&&c<='9');}),"Authored car ID must be three lowercase letters or digits");
+ if(overwrite)require(authored==donor.id,"Replacing a donor keeps its car ID");
+ auto names=displayNames(archive);require(names.count("car_"+authored),"Authored car ID has no stock name token");auto donorPrefix="graphics/vehicles/"+donor.id+"/",prefix="graphics/vehicles/"+authored+"/";
+ Plan plan=planOverride?*planOverride:defaultPlan(s,donor.id);if(!planOverride)for(auto &binding:plan.materials)binding.size=qualityTextureSize(binding.size,binding.category,o.quality);std::vector<Texture> atlasTextures;
  for(auto &binding:plan.materials){if(binding.image<0||!binding.importTexture)continue;auto image=textures::decodePNG(s.images.at(binding.image));auto width=textures::powerOfTwo(image.width,64,binding.size),height=textures::powerOfTwo(image.height,64,binding.size);image=textures::resize(image,width,height);const char *fourcc=textures::hasAlpha(image)?"DXT5":"DXT1";auto dds=textures::buildDDS(image,fourcc);Texture texture;texture.name=binding.texture;texture.fourcc=fourcc;texture.width=width;texture.height=height;texture.flags=binding.flags;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);atlasTextures.push_back(std::move(texture));}
- auto result=convert(s,original,o,plan);ImportedMod mod({},&archive);Origin origin({},packageId.empty()?newPackageId():packageId);origin.setOverwrite(overwrite);origin.setMapping(donor.id,donor.id);mod.setOriginMetadata(origin);std::map<std::string,Bytes> assets;auto prefix="graphics/vehicles/"+donor.id+"/";for(auto&e:archive.entries)if(lower(e.name).rfind(prefix,0)==0)assets["assets/"+lower(e.name)]=archive.load(e);assets["assets/"+prefix+"lod0_livery.bdae"]=result.model;
- if(!atlasTextures.empty()||o.neutralMask){auto atlas=stockAsset(archive,prefix+"textures/batchTextures.brres");for(auto &texture:atlasTextures)atlas=textures::withTexture(atlas,texture);if(o.neutralMask)atlas=textures::withTexture(atlas,neutralPaintMask());assets["assets/"+prefix+"textures/batchtextures.brres"]=std::move(atlas);}
- std::map<std::string,std::string> renames{{"car_"+donor.id,name}};std::string paintToken;if(o.addPaint){auto token=newPaintToken(archive,donor.id);paintToken=token.first;renames[paintToken]=o.paintName.empty()?"Black":o.paintName;}
- if(o.addPaint){PaintPackResult added;for(const char *path:{"scripts/config/paint_PC.cfg","scripts/config/paint.cfg"}){try{auto result=addPaintPack(stockAsset(archive,path),donor.id,paintToken);assets["assets/"+lower(path)]=result.cfg;if(std::string(path)=="scripts/config/paint_PC.cfg")added=result;}catch(const std::exception &){if(std::string(path)=="scripts/config/paint_PC.cfg")throw;}}
-  bool luaPatched=false;for(const char *path:{"scripts/config/paint_PC.luac","scripts/config/paint.luac"}){try{auto lua=stockAsset(archive,path);auto patched=configLuaPatch(lua,{{{"Paints",donor.id,int(added.index+1)},added.pack}});assets["assets/"+lower(path)]=patched;luaPatched=true;}catch(const std::exception &){}}
-  result.report["paint"]={{"token",paintToken},{"name",o.paintName.empty()?"Black":o.paintName},{"index",added.index},{"lua_patched",luaPatched}};}
- if(o.fitCollision){auto &r=result.report;require(r.contains("wheel_lo")&&r.contains("wheel_hi")&&r.contains("vehicle_lo")&&r.contains("vehicle_hi"),"Missing collision fit bounds");auto wl=r["wheel_lo"],wh=r["wheel_hi"],vl=r["vehicle_lo"],vh=r["vehicle_hi"];auto hull=stockAsset(archive,prefix+"collision.hzc");double xl=wl[0].get<double>(),xh=wh[0].get<double>();if(!(xh>xl)){xl=vl[0].get<double>();xh=vh[0].get<double>();}assets["assets/"+prefix+"collision.hzc"]=fitCollision(hull,xl,xh,vl[2].get<double>(),vh[2].get<double>(),vh[1].get<double>());r["collision_fit"]={{"target_x",Json::array({wl[0],wh[0]})},{"target_z",Json::array({vl[2],vh[2]})},{"target_top",vh[1]}};}
+ auto result=convert(s,original,o,plan);ImportedMod mod({},&archive);Origin origin({},packageId.empty()?newPackageId():packageId);origin.setOverwrite(overwrite);origin.setMapping(authored,donor.id);mod.setOriginMetadata(origin);std::map<std::string,Bytes> assets;
+ for(auto&e:archive.entries){auto path=lower(e.name);if(path.rfind(donorPrefix,0)==0)assets["assets/"+prefix+path.substr(donorPrefix.size())]=archive.load(e);}assets["assets/"+prefix+"lod0_livery.bdae"]=result.model;
+ if(!atlasTextures.empty()||o.neutralMask){auto atlas=stockAsset(archive,donorPrefix+"textures/batchTextures.brres");for(auto &texture:atlasTextures)atlas=textures::withTexture(atlas,texture);if(o.neutralMask)atlas=textures::withTexture(atlas,neutralPaintMask());assets["assets/"+prefix+"textures/batchtextures.brres"]=std::move(atlas);}
+ std::map<std::string,std::string> renames{{"car_"+authored,name}};std::string paintToken;std::optional<PaintPackResult> paintAdded;if(o.addPaint)paintToken=newPaintToken(archive,authored).first;
+ if(o.addPaint){for(const char *path:{"scripts/config/paint_PC.cfg","scripts/config/paint.cfg"}){try{auto cfg=stockAsset(archive,path);if(authored!=donor.id)cfg=clonePaintCar(cfg,donor.id,authored);auto added=addPaintPack(cfg,authored,paintToken);if(!added)continue;assets["assets/"+lower(path)]=added->cfg;if(std::string(path)=="scripts/config/paint_PC.cfg")paintAdded=added;}catch(const std::exception &){if(std::string(path)=="scripts/config/paint_PC.cfg")throw;}}
+  if(paintAdded){renames[paintToken]=o.paintName.empty()?"Black":o.paintName;bool luaPatched=false;for(const char *path:{"scripts/config/paint_PC.luac","scripts/config/paint.luac"}){try{auto lua=stockAsset(archive,path);auto patched=configLuaPatch(lua,{{{"Paints",authored,int(paintAdded->index+1)},paintAdded->pack}});assets["assets/"+lower(path)]=patched;luaPatched=true;}catch(const std::exception &){}}result.report["paint"]={{"token",paintToken},{"name",o.paintName.empty()?"Black":o.paintName},{"index",paintAdded->index},{"lua_patched",luaPatched}};}
+  else result.report["paint"]={{"skipped","donor already uses the nine-pack limit"}};}
+ if(o.fitCollision){auto &r=result.report;require(r.contains("wheel_lo")&&r.contains("wheel_hi")&&r.contains("vehicle_lo")&&r.contains("vehicle_hi"),"Missing collision fit bounds");auto wl=r["wheel_lo"],wh=r["wheel_hi"],vl=r["vehicle_lo"],vh=r["vehicle_hi"];auto hull=stockAsset(archive,donorPrefix+"collision.hzc");double xl=wl[0].get<double>(),xh=wh[0].get<double>();if(!(xh>xl)){xl=vl[0].get<double>();xh=vh[0].get<double>();}assets["assets/"+prefix+"collision.hzc"]=fitCollision(hull,xl,xh,vl[2].get<double>(),vh[2].get<double>(),vh[1].get<double>());r["collision_fit"]={{"target_x",Json::array({wl[0],wh[0]})},{"target_z",Json::array({vl[2],vh[2]})},{"target_top",vh[1]}};}
+ if(o.fitShadow){auto &r=result.report;auto vl=r["vehicle_lo"],vh=r["vehicle_hi"];double xl=vl[0].get<double>(),xh=vh[0].get<double>(),yl=vl[1].get<double>(),yh=vh[1].get<double>(),zl=vl[2].get<double>(),zh=vh[2].get<double>();assets["assets/"+prefix+"shadow.bdae"]=fitShadow(stockAsset(archive,donorPrefix+"shadow.bdae"),xl,xh,zl,zh);assets["assets/"+prefix+"nodes.bdae"]=fitGarageBox(stockAsset(archive,donorPrefix+"nodes.bdae"),xl,xh,yl,yh,zl,zh);r["shadow_box_fit"]=true;}
  for(auto&f:renamedStrings([&](const std::string&p){return stockAsset(archive,p);},renames,o.allLocaleNames))assets[f.first]=f.second;
- result.report["options"]={{"source_scale",o.scale},{"quarter_turns",o.yaw},{"z_up",o.zUp},{"fit_to_donor",o.fit}};result.report["donor_id"]=donor.id;result.report["donor_name"]=donor.name;result.report["operation"]=overwrite?"Replace donor car":"Add as a new car";result.report["overwrite"]=overwrite?1:0;result.report["package_id"]=origin.packageId();result.report["authored_id"]=donor.id;
+ result.report["options"]={{"source_scale",o.scale},{"quarter_turns",o.yaw},{"z_up",o.zUp},{"fit_to_donor",o.fit}};result.report["donor_id"]=donor.id;result.report["donor_name"]=donor.name;result.report["operation"]=overwrite?"Replace donor car":"Add as a new car";result.report["overwrite"]=overwrite?1:0;result.report["package_id"]=origin.packageId();result.report["authored_id"]=authored;
  Json materialReport=Json::array();for(auto &binding:plan.materials)materialReport.push_back({{"name",binding.name},{"template",binding.templateMaterial},{"texture",binding.texture},{"size",binding.size},{"image",binding.image},{"flags",binding.flags}});result.report["materials"]=materialReport;result.report["imported_textures"]=atlasTextures.size();
- result.report["limitations"]={"Collision hull and effect shells are rebuilt from the imported exterior; a neutral body mask and one extra paint are added. The paint CFG and 32-bit Lua are extended; the 64-bit Lua is unchanged. Verify the extra paint in game. Donor handling, animation and shadow geometry retained.","Imported base-color textures are converted to native DXT1/DXT5 atlases with mip chains. Metallic/roughness, normal and occlusion maps are not converted.","Body paint, glass and tyres keep native materials; use the editor to adjust paint, livery and HUD / boosters before final export."};Json roles=Json::array();for(auto&p:s.parts)roles.push_back({{"part",p.name},{"material",p.material},{"role",roleName(p.role)}});result.report["parts"]=roles;auto report=result.report.dump(2)+"\n";mod.files["model-import.json"]=Bytes(report.begin(),report.end());
+ result.report["limitations"]={"Collision hull and effect shells are rebuilt from the imported exterior; a neutral body mask is added. An extra paint is added only when the donor is below the client's nine-pack limit, with CFG and 32-bit Lua updates. Donor handling and animation retained; the shadow and garage box are fitted.","Imported base-color textures are converted to native DXT1/DXT5 atlases with mip chains. Metallic/roughness, normal and occlusion maps are not converted.","Body paint, glass and tyres keep native materials; use the editor to adjust paint, livery and HUD / boosters before final export."};Json roles=Json::array();for(auto&p:s.parts)roles.push_back({{"part",p.name},{"material",p.material},{"role",roleName(p.role)}});result.report["parts"]=roles;auto report=result.report.dump(2)+"\n";mod.files["model-import.json"]=Bytes(report.begin(),report.end());
  if(!s.author.empty()||!s.license.empty()||!s.sourceUrl.empty()){std::string text=(s.title.empty()?name:s.title)+"\n\n";if(!s.author.empty())text+="Author: "+s.author+"\n";if(!s.license.empty())text+="License: "+s.license+"\n";if(!s.sourceUrl.empty())text+="Source: "+s.sourceUrl+"\n";text+="\nModified: geometry transformed, regrouped and converted to native assets for Riff Racer.\n";mod.files["ATTRIBUTION.txt"]=Bytes(text.begin(),text.end());}
  mod.exportCopy(destination,assets);
 }
