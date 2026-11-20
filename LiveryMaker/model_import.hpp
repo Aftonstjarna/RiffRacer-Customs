@@ -56,13 +56,13 @@ struct Options {double scale=1;int yaw=0;bool zUp=false,fit=true;};
 inline P orient(P p,const Options&o){if(o.zUp)p={p[0],p[2],-p[1]};int q=(o.yaw%4+4)%4;while(q--)p={p[2],p[1],-p[0]};for(auto&v:p)v*=o.scale;return p;}
 inline P orientedSize(const Source&s,const Options&o){Bounds b;for(auto&p:s.parts)if(p.role!=Ignore)for(auto v:p.positions)b.add(orient(v,o));return b.size();}
 struct Result {Bytes model;Json report;};
-struct MaterialBinding {std::string name,templateMaterial,texture;int image=-1;unsigned size=1024,flags=2;};
+struct MaterialBinding {std::string name,templateMaterial,texture,category,finish;int image=-1;unsigned size=1024,flags=2;bool importTexture=true;};
 struct Plan {std::vector<MaterialBinding> materials;std::vector<int> partMaterial;};
 
 inline Plan defaultPlan(const Source &s,const std::string &car){
  require(!car.empty()&&car.size()<=8,"Invalid authored car ID");Plan plan;plan.partMaterial.assign(s.parts.size(),-1);std::map<std::string,int> shared;
- auto binding=[&](const std::string &key,const std::string &templateName,const std::string &category,unsigned size,unsigned flags,int image)->int{
-  auto it=shared.find(key);if(it!=shared.end())return it->second;MaterialBinding b;b.name=car+"_"+category;b.templateMaterial=templateName;b.texture=b.name;b.size=size;b.flags=flags;b.image=image;plan.materials.push_back(std::move(b));int index=int(plan.materials.size()-1);shared[key]=index;return index;};
+ auto binding=[&](const std::string &category,const std::string &templateName,unsigned size,unsigned flags,int image)->int{
+  auto it=shared.find(category);if(it!=shared.end())return it->second;MaterialBinding b;b.name=car+"_"+category;b.category=category;b.templateMaterial=templateName;b.texture=b.name;b.size=size;b.flags=flags;b.image=image;plan.materials.push_back(std::move(b));int index=int(plan.materials.size()-1);shared[category]=index;return index;};
  for(size_t i=0;i<s.parts.size();i++){
   const auto &part=s.parts[i];if(part.role==Ignore||part.role==Body||part.role==Glass)continue;
   int sm=part.materialIndex;if(sm<0||size_t(sm)>=s.materials.size())continue;
@@ -70,12 +70,35 @@ inline Plan defaultPlan(const Source &s,const std::string &car){
   std::string material=lower(source.name),partName=lower(part.name);
   if(part.role==Wheels||material.find("wheel")!=std::string::npos){
    if(partName.find("cwheel")!=std::string::npos||partName.find("tyre")!=std::string::npos||partName.find("tire")!=std::string::npos)continue;
-   plan.partMaterial[i]=binding("wheel","wheel|metal|diffuse","wheel",512,0,source.image);continue;}
-  if(part.role==Interior||material.find("indoor")!=std::string::npos||material.find("interior")!=std::string::npos){plan.partMaterial[i]=binding("interior","blackplastic|undercarriage|diffuse","interior",1024,2,source.image);continue;}
-  if(material.find("front")!=std::string::npos&&material.find("chrome")!=std::string::npos){plan.partMaterial[i]=binding("front","bumper_mat|blackplastic|headlight|lights|diffuse","front",1024,2,source.image);continue;}
-  if(material.find("chrome")!=std::string::npos||material.find("metal")!=std::string::npos){plan.partMaterial[i]=binding("chrome","bumper_mat|blackplastic|headlight|lights|diffuse","chrome",1024,2,source.image);continue;}
+   plan.partMaterial[i]=binding("wheel","wheel|metal|diffuse",512,0,source.image);continue;}
+  if(part.role==Interior||material.find("indoor")!=std::string::npos||material.find("interior")!=std::string::npos){plan.partMaterial[i]=binding("interior","blackplastic|undercarriage|diffuse",1024,2,source.image);continue;}
+  if(partName.find("grille")!=std::string::npos||partName.find("mask")!=std::string::npos||partName.find("tooth")!=std::string::npos||partName.find("vent")!=std::string::npos){plan.partMaterial[i]=binding("grille","grille|diffuse",512,0,source.image);continue;}
+  if(partName.find("lamp")!=std::string::npos||partName.find("light")!=std::string::npos||partName.find("headlight")!=std::string::npos||partName.find("bulb")!=std::string::npos){plan.partMaterial[i]=binding("headlight","headlight|lights1|lights|diffuse",512,2,source.image);continue;}
+  if(material.find("front")!=std::string::npos&&material.find("chrome")!=std::string::npos){plan.partMaterial[i]=binding("front","bumper_mat|blackplastic|headlight|lights|diffuse",1024,2,source.image);continue;}
+  if(material.find("chrome")!=std::string::npos||material.find("metal")!=std::string::npos){plan.partMaterial[i]=binding("chrome","bumper_mat|blackplastic|headlight|lights|diffuse",1024,2,source.image);continue;}
  }
  return plan;
+}
+
+inline std::vector<std::string> donorMaterialNames(const Archive &archive,const std::string &donor){
+ auto model=decodeModel(stockAsset(archive,"graphics/vehicles/"+donor+"/lod0_livery.bdae"));std::vector<std::string> names;for(auto &material:model.materials)names.push_back(material.value("name",std::string()));return names;
+}
+
+inline void applyFinish(Bytes &block,const std::string &finish){
+ struct Preset {double power,scale,color[3],reflection,ambient;};Preset preset;
+ if(finish=="matte")preset={8,.05,{1,1,1},.10,.30};
+ else if(finish=="satin")preset={24,.35,{1,1,1},.40,.20};
+ else if(finish=="glossy")preset={48,.80,{1,1,1},.75,.10};
+ else if(finish=="chrome")preset={64,1.,{.90,.95,1.},.90,.05};
+ else return;
+ require(block.size()%128==0,"Invalid material parameter block");
+ for(size_t at=0;at<block.size();at+=128){auto name=text(block,at,64);
+  if(name=="g_specularPower")floatAt(block,at+112,preset.power);
+  else if(name=="g_specularScale")floatAt(block,at+112,preset.scale);
+  else if(name=="g_specularColor"){floatAt(block,at+112,preset.color[0]);floatAt(block,at+116,preset.color[1]);floatAt(block,at+120,preset.color[2]);}
+  else if(name=="g_reflectionStrength")floatAt(block,at+112,preset.reflection);
+  else if(name=="g_reflectionAmbient")floatAt(block,at+112,preset.ambient);
+ }
 }
 
 inline Result convert(const Source&s,const Bytes&original,const Options&o,const Plan &plan={}){
@@ -102,6 +125,9 @@ inline Result convert(const Source&s,const Bytes&original,const Options&o,const 
   std::fill(record.begin(),record.begin()+64,0);std::memcpy(record.data(),name.data(),name.size());
   std::fill(record.begin()+64,record.begin()+64+8*32,0);
   if(!spec.texture.empty()){std::string slot=spec.texture+".tga";require(slot.size()<32,"Texture name is too long for a native material slot");std::memcpy(record.data()+64,slot.data(),slot.size());}
+  if(!spec.finish.empty()&&spec.finish!="default"){
+   uint32_t first=u32(record,440),count=u32(record,436);require(first<=params.size()/128&&count<=(params.size()/128-first),"Invalid template parameters");Bytes block(params.begin()+size_t(first)*128,params.begin()+size_t(first+count)*128);applyFinish(block,spec.finish);uint32_t newFirst=uint32_t(params.size()/128);params.insert(params.end(),block.begin(),block.end());set32(record,440,newFirst);
+  }
   materials.insert(materials.end(),record.begin(),record.end());bindingMaterial[i]=int(mc0+i);
  }
  uint32_t materialCount=mc0+uint32_t(plan.materials.size());
@@ -116,13 +142,13 @@ inline Result convert(const Source&s,const Bytes&original,const Options&o,const 
  require(importedTriangles>0&&output.size()<32767,"No imported geometry or too many meshes");std::stable_sort(output.begin(),output.end(),[](const Mesh&a,const Mesh&b){return a.stride<b.stride;});Bytes vertices,indices,records,links,nodes(original.begin()+na0,original.begin()+na0+native.nodes.size()*156);Bounds global;size_t triangles=0;
  for(auto&m:output){vertices.resize((vertices.size()+m.stride-1)/m.stride*m.stride);size_t first=vertices.size()/m.stride,count=m.vertices.size()/m.stride;require(first+count<=65536,"Native 16-bit vertex limit exceeded. Simplify the model before import");set32(m.record,8,first);set32(m.record,12,count);set32(m.record,16,indices.size()/2);set32(m.record,20,m.indices.size());records.insert(records.end(),m.record.begin(),m.record.end());vertices.insert(vertices.end(),m.vertices.begin(),m.vertices.end());for(auto v:m.indices){require(v<count,"Invalid generated index");put16(indices,first+v);}triangles+=m.indices.size()/3;}
  for(size_t n=0;n<native.nodes.size();n++){set32(nodes,n*156+120,links.size()/2);Bounds b;for(size_t i=0;i<output.size();i++)if(output[i].node==int(n)){put16(links,i);auto&m=output[i];for(size_t j=0;j<m.vertices.size();j+=m.stride){P p{f32(m.vertices,j),f32(m.vertices,j+4),f32(m.vertices,j+8)};b.add(p);auto world=transform(native.nodes[n].matrix,{F(p[0]),F(p[1]),F(p[2])},true);global.add({world.x,world.y,world.z});}}put16(links,65535);if(b.count){auto c=b.center(),d=b.size();for(int k=0;k<3;k++){floatAt(nodes,n*156+80+k*4,b.lo[k]);floatAt(nodes,n*156+92+k*4,b.hi[k]);floatAt(nodes,n*156+104+k*4,c[k]);}floatAt(nodes,n*156+116,std::sqrt(dotP(d,d))/2);}}
- Bytes out(original.begin(),original.begin()+ma0);set32(out,12,materialCount);out.insert(out.end(),materials.begin(),materials.end());out.resize((out.size()+31)/32*32);set32(out,72,out.size());out.insert(out.end(),params.begin(),params.end());set32(out,76,out.size());out.insert(out.end(),nodes.begin(),nodes.end());auto section=[&](int field,const Bytes&data){out.resize((out.size()+31)/32*32);set32(out,field,out.size());out.insert(out.end(),data.begin(),data.end());};section(84,records);set32(out,80,u32(out,84));section(88,links);section(92,vertices);section(96,indices);out.resize((out.size()+31)/32*32);set32(out,24,output.size());set32(out,32,vertices.size()/4);set32(out,64,indices.size()/2);auto d=global.size(),c=global.center();for(int k=0;k<3;k++){floatAt(out,100+k*4,d[k]);floatAt(out,112+k*4,c[k]);}floatAt(out,124,std::sqrt(dotP(d,d))/2);auto checked=decodeModel(out);require(checked.nodes.size()==native.nodes.size()&&checked.meshes.size()==output.size(),"Native model read-back failed");
+ Bytes out(original.begin(),original.begin()+ma0);set32(out,12,materialCount);out.insert(out.end(),materials.begin(),materials.end());out.resize((out.size()+31)/32*32);set32(out,72,out.size());set32(out,16,uint32_t(params.size()/128));out.insert(out.end(),params.begin(),params.end());set32(out,76,out.size());out.insert(out.end(),nodes.begin(),nodes.end());auto section=[&](int field,const Bytes&data){out.resize((out.size()+31)/32*32);set32(out,field,out.size());out.insert(out.end(),data.begin(),data.end());};section(84,records);set32(out,80,u32(out,84));section(88,links);section(92,vertices);section(96,indices);out.resize((out.size()+31)/32*32);set32(out,24,output.size());set32(out,32,vertices.size()/4);set32(out,64,indices.size()/2);auto d=global.size(),c=global.center();for(int k=0;k<3;k++){floatAt(out,100+k*4,d[k]);floatAt(out,112+k*4,c[k]);}floatAt(out,124,std::sqrt(dotP(d,d))/2);auto checked=decodeModel(out);require(checked.nodes.size()==native.nodes.size()&&checked.meshes.size()==output.size(),"Native model read-back failed");
  if(plan.materials.empty())require(std::equal(original.begin()+ma0,original.begin()+ma0+size_t(mc0)*464,out.begin()+ma0)&&std::equal(original.begin()+pa0,original.begin()+na0,out.begin()+u32(out,72)),"Native material bytes changed unexpectedly");
  return {out,{{"source_sha256",s.hash},{"donor_sha256",sha(original)},{"output_sha256",sha(out)},{"input_triangles",s.triangles},{"imported_triangles",importedTriangles},{"output_triangles",triangles},{"scale_xyz",scale},{"translation",shift},{"visual_dimensions",dimensions(checked)},{"native_wheels_retained",!importedWheels}}};
 }
-inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,const Options&o,const fs::path&destination,const std::string&name,bool overwrite=true,const std::string&packageId={}){
- auto original=stockAsset(archive,"graphics/vehicles/"+donor.id+"/lod0_livery.bdae");Plan plan=defaultPlan(s,donor.id);std::vector<Texture> atlasTextures;
- for(auto &binding:plan.materials){if(binding.image<0)continue;auto image=textures::decodePNG(s.images.at(binding.image));auto width=textures::powerOfTwo(image.width,64,binding.size),height=textures::powerOfTwo(image.height,64,binding.size);image=textures::resize(image,width,height);const char *fourcc=textures::hasAlpha(image)?"DXT5":"DXT1";auto dds=textures::buildDDS(image,fourcc);Texture texture;texture.name=binding.texture;texture.fourcc=fourcc;texture.width=width;texture.height=height;texture.flags=binding.flags;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);atlasTextures.push_back(std::move(texture));}
+inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,const Options&o,const fs::path&destination,const std::string&name,bool overwrite=true,const std::string&packageId={},const Plan *planOverride=nullptr){
+ auto original=stockAsset(archive,"graphics/vehicles/"+donor.id+"/lod0_livery.bdae");Plan plan=planOverride?*planOverride:defaultPlan(s,donor.id);std::vector<Texture> atlasTextures;
+ for(auto &binding:plan.materials){if(binding.image<0||!binding.importTexture)continue;auto image=textures::decodePNG(s.images.at(binding.image));auto width=textures::powerOfTwo(image.width,64,binding.size),height=textures::powerOfTwo(image.height,64,binding.size);image=textures::resize(image,width,height);const char *fourcc=textures::hasAlpha(image)?"DXT5":"DXT1";auto dds=textures::buildDDS(image,fourcc);Texture texture;texture.name=binding.texture;texture.fourcc=fourcc;texture.width=width;texture.height=height;texture.flags=binding.flags;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);atlasTextures.push_back(std::move(texture));}
  auto result=convert(s,original,o,plan);ImportedMod mod({},&archive);Origin origin({},packageId.empty()?newPackageId():packageId);origin.setOverwrite(overwrite);origin.setMapping(donor.id,donor.id);mod.setOriginMetadata(origin);std::map<std::string,Bytes> assets;auto prefix="graphics/vehicles/"+donor.id+"/";for(auto&e:archive.entries)if(lower(e.name).rfind(prefix,0)==0)assets["assets/"+lower(e.name)]=archive.load(e);assets["assets/"+prefix+"lod0_livery.bdae"]=result.model;
  if(!atlasTextures.empty()){auto atlas=stockAsset(archive,prefix+"textures/batchTextures.brres");for(auto &texture:atlasTextures)atlas=textures::withTexture(atlas,texture);assets["assets/"+prefix+"textures/batchtextures.brres"]=std::move(atlas);}
  for(auto&f:renamedStrings([&](const std::string&p){return stockAsset(archive,p);},{{"car_"+donor.id,name}}))assets[f.first]=f.second;

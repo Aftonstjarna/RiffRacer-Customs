@@ -101,34 +101,95 @@ inline Image downsample(const Image &im) {
 using Pixel=std::array<int,4>;
 inline uint16_t rgb565(const Pixel &p) { return uint16_t(((p[0]*31+127)/255)<<11 | ((p[1]*63+127)/255)<<5 | ((p[2]*31+127)/255)); }
 inline Pixel rgb(uint16_t p) { return {int((p>>11)*255/31),int(((p>>5)&63)*255/63),int((p&31)*255/31),255}; }
-// Small deterministic BC2/BC3 encoder. Bounding-box endpoints prioritize a
-// dependency-free first authoring milestone; photographic quality is limited.
+// Deterministic BC1/BC2/BC3 colour encoder. Block endpoints are chosen from
+// bounding-box, principal-axis and inset candidates, then refined by least
+// squares against the current palette indices. Alpha keeps its endpoint range.
+struct ColorCandidate {uint16_t a=0,b=0;uint32_t indices=0;double error=1e300;};
+inline ColorCandidate evaluateColor(const std::array<Pixel,16> &p,uint16_t a,uint16_t b) {
+    if(a<b)std::swap(a,b);
+    if(a==b){if(a<65535)++a;else --b;}
+    std::array<Pixel,4> palette{rgb(a),rgb(b),{}, {}};
+    for(int c=0;c<3;c++){palette[2][c]=(2*palette[0][c]+palette[1][c])/3;palette[3][c]=(palette[0][c]+2*palette[1][c])/3;}
+    uint32_t indices=0;double error=0;
+    for(int i=0;i<16;i++){
+        int best=0;double distance=1e300;
+        for(int j=0;j<4;j++){double d=0;for(int c=0;c<3;c++){double t=p[i][c]-palette[j][c];d+=t*t;}if(d<distance){distance=d;best=j;}}
+        indices|=uint32_t(best)<<(2*i);error+=distance;
+    }
+    return {a,b,indices,error};
+}
+inline Pixel axisColor(const std::array<Pixel,16> &p,double axis[3],bool maximum) {
+    double best=maximum?-1e300:1e300;Pixel result=p[0];
+    for(const auto &pixel:p){double projection=pixel[0]*axis[0]+pixel[1]*axis[1]+pixel[2]*axis[2];if(maximum?projection>best:projection<best){best=projection;result=pixel;}}
+    return result;
+}
+inline void leastSquaresColor(const std::array<Pixel,16> &p,const ColorCandidate &candidate,Pixel &low,Pixel &high) {
+    double s00=0,s01=0,s11=0,r0[3]={0,0,0},r1[3]={0,0,0};
+    for(int i=0;i<16;i++){
+        double t=((candidate.indices>>(2*i))&3)/3.,w0=1-t,w1=t;
+        s00+=w0*w0;s01+=w0*w1;s11+=w1*w1;
+        for(int c=0;c<3;c++){r0[c]+=w0*p[i][c];r1[c]+=w1*p[i][c];}
+    }
+    double determinant=s00*s11-s01*s01;
+    if(std::abs(determinant)<1e-9){low=rgb(candidate.a);high=rgb(candidate.b);return;}
+    for(int c=0;c<3;c++){
+        low[c]=int(std::clamp((r0[c]*s11-r1[c]*s01)/determinant,0.,255.)+.5);
+        high[c]=int(std::clamp((r1[c]*s00-r0[c]*s01)/determinant,0.,255.)+.5);
+    }
+}
+inline ColorCandidate encodeColor(const std::array<Pixel,16> &p) {
+    Pixel lo{255,255,255,255},hi{0,0,0,0};
+    for(const auto &pixel:p)for(int c=0;c<3;c++){lo[c]=std::min(lo[c],pixel[c]);hi[c]=std::max(hi[c],pixel[c]);}
+    ColorCandidate best=evaluateColor(p,rgb565(hi),rgb565(lo));
+    auto consider=[&](const Pixel &a,const Pixel &b){auto candidate=evaluateColor(p,rgb565(a),rgb565(b));if(candidate.error<best.error)best=candidate;};
+    // Principal axis of the block's colour covariance.
+    double mean[3]={0,0,0},cov[3][3]={{0,0,0},{0,0,0},{0,0,0}};
+    for(const auto &pixel:p)for(int c=0;c<3;c++)mean[c]+=pixel[c]/16.;
+    for(const auto &pixel:p)for(int r=0;r<3;r++)for(int c=0;c<3;c++)cov[r][c]+=(pixel[r]-mean[r])*(pixel[c]-mean[c]);
+    double axis[3]={1,1,1};double length=std::sqrt(axis[0]*axis[0]+axis[1]*axis[1]+axis[2]*axis[2]);for(double &value:axis)value/=length;
+    for(int iteration=0;iteration<8;iteration++){
+        double next[3]={0,0,0};for(int r=0;r<3;r++)for(int c=0;c<3;c++)next[r]+=cov[r][c]*axis[c];
+        double magnitude=std::sqrt(next[0]*next[0]+next[1]*next[1]+next[2]*next[2]);
+        if(magnitude<1e-12)break;
+        for(int c=0;c<3;c++)axis[c]=next[c]/magnitude;
+    }
+    consider(axisColor(p,axis,false),axisColor(p,axis,true));
+    const double fixed[4][3]={{1,0,0},{0,1,0},{0,0,1},{.299,.587,.114}};
+    for(const auto &direction:fixed){double value[3]={direction[0],direction[1],direction[2]};consider(axisColor(p,value,false),axisColor(p,value,true));}
+    // Inset endpoints reduce overshoot on noisy photographic blocks.
+    for(double scale:{0.85,0.7}){
+        Pixel insetLo=lo,insetHi=hi;
+        for(int c=0;c<3;c++){double middle=(lo[c]+hi[c])*.5;insetLo[c]=int(std::clamp(middle+(lo[c]-middle)*scale,0.,255.)+.5);insetHi[c]=int(std::clamp(middle+(hi[c]-middle)*scale,0.,255.)+.5);}
+        consider(insetLo,insetHi);
+    }
+    // Refine the best palette iteratively with least-squares endpoints.
+    for(int iteration=0;iteration<2;iteration++){
+        Pixel low,high;leastSquaresColor(p,best,low,high);consider(low,high);
+    }
+    return best;
+}
 inline Bytes encodeLevel(const Image &im, bool bc2, bool colorOnly=false) {
     Bytes out;
     for(unsigned by=0;by<im.height;by+=4) for(unsigned bx=0;bx<im.width;bx+=4) {
-        std::array<Pixel,16> p{}; Pixel lo{255,255,255,255},hi{0,0,0,0};
+        std::array<Pixel,16> p{};
         for(unsigned y=0;y<4;y++) for(unsigned x=0;x<4;x++) {
             size_t off=(size_t(std::min(by+y,im.height-1))*im.width+std::min(bx+x,im.width-1))*4;
-            for(int c=0;c<4;c++) { int v=im.pixels[off+c]; p[y*4+x][c]=v; lo[c]=std::min(lo[c],v); hi[c]=std::max(hi[c],v); }
+            for(int c=0;c<4;c++) p[y*4+x][c]=im.pixels[off+c];
         }
         uint64_t bits=0;
-        if(colorOnly) { /* BC1 keeps only the color block below. */ }
+        if(colorOnly) { /* BC1 keeps only the optimised colour block below. */ }
         else if(bc2) { for(int i=0;i<16;i++) bits|=uint64_t((p[i][3]*15+127)/255)<<(i*4); for(int i=0;i<8;i++) out.push_back(uint8_t(bits>>(8*i))); }
         else {
-            int a=hi[3],b=lo[3]; if(a==b) { if(a<255) ++a; else --b; }
+            int a=p[0][3],b=p[0][3];for(const auto &pixel:p){a=std::max(a,pixel[3]);b=std::min(b,pixel[3]);}
+            if(a==b) { if(a<255) ++a; else --b; }
             out.push_back(uint8_t(a)); out.push_back(uint8_t(b));
             std::array<int,8> palette{a,b,0,0,0,0,0,0};
             for(int i=2;i<8;i++) palette[i]=((8-i)*a+(i-1)*b)/7;
             for(int i=0;i<16;i++) { int best=0; for(int j=1;j<8;j++) if(std::abs(p[i][3]-palette[j])<std::abs(p[i][3]-palette[best])) best=j; bits|=uint64_t(best)<<(i*3); }
             for(int i=0;i<6;i++) out.push_back(uint8_t(bits>>(8*i)));
         }
-        uint16_t a=rgb565(hi),b=rgb565(lo); if(a<b) std::swap(a,b);
-        if(a==b) { if(a<65535) ++a; else --b; }
-        put16(out,a);put16(out,b); std::array<Pixel,4> palette{rgb(a),rgb(b),{}, {}};
-        for(int c=0;c<3;c++) { palette[2][c]=(2*palette[0][c]+palette[1][c])/3; palette[3][c]=(palette[0][c]+2*palette[1][c])/3; }
-        uint32_t indices=0;
-        for(int i=0;i<16;i++) { int best=0,dist=INT32_MAX; for(int j=0;j<4;j++) { int d=0;for(int c=0;c<3;c++) d+=(p[i][c]-palette[j][c])*(p[i][c]-palette[j][c]); if(d<dist) {dist=d;best=j;} } indices|=uint32_t(best)<<(2*i); }
-        put32(out,indices);
+        auto block=encodeColor(p);
+        put16(out,block.a);put16(out,block.b);put32(out,block.indices);
     }
     return out;
 }

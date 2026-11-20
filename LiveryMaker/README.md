@@ -409,14 +409,21 @@ or **Add as a new car**; the latter requires ReRiff automatic car-slot support.
 Export subsequent editor adjustments to another folder and install only that final copy.
 
 The converter imports base-color textures for chrome, front-chrome, interior and
-wheel-rim parts. Each image is resized to a native power-of-two size, given a full
-mip chain, encoded as DXT1 (opaque) or DXT5 (alpha), and added to the donor's
-texture atlas. Material records are cloned from a suitable donor material, renamed,
-and pointed at the new texture; shader parameters are retained. The import dialog
-lists the resulting texture names and sizes. Painted body panels stay on the
-native car-paint material, and glass and tyres keep native materials. Source
-metallic/roughness, normal, occlusion and emissive maps, vertex colors and base
-color factors are not converted. UV0 is retained, UV1 duplicates UV0, supplied
+wheel-rim parts, and grille and headlight parts are classified separately from
+the main chrome material. Each image is resized to a native power-of-two size,
+given a full mip chain, and encoded as DXT1 (opaque) or DXT5 (alpha); block
+endpoints use a principal-axis and least-squares fit rather than a plain
+bounding box. Material records are cloned from a suitable donor material,
+renamed, and pointed at the new texture. The import dialog lists the resulting
+texture names and sizes.
+
+**Materials…** opens per-category controls: a native template, texture size
+(256, 512 or 1024), finish preset (template default, matte, satin, glossy or
+chrome) and whether to import the texture at all. A finish rewrites only the
+cloned material's specular and reflection parameters. Painted body panels stay
+on the native car-paint material, and glass and tyres keep native materials.
+Source metallic/roughness, normal, occlusion and emissive maps, vertex colors
+and base color factors are not converted. UV0 is retained, UV1 duplicates UV0, supplied
 normals are transformed correctly (or generated when absent), and tangent bases
 are regenerated. Missing UVs become zero UVs, so add a proper UV layout before
 authoring a PNG livery. Required glTF extensions, compressed/sparse/normalized
@@ -526,6 +533,11 @@ in-game name. The editor opens before these mappings are complete; export is
 enabled once every donor is chosen. Choose either export mode and export a new
 copy to write the stable package identity and mappings. The imported files remain
 untouched. Donors are never guessed from a custom car's geometry or name.
+
+A legacy package whose car folder is a runtime slot (`r00`–`r06`) or another
+non-authored ID still opens for inspection and migration, but export stays
+disabled because `origin.txt` may only declare three lowercase letters or digits.
+The editor names those IDs and asks you to rename the car resources first.
 
 Customs exports loose assets using authored IDs. It does not assign numeric slots
 or bake runtime IDs into assets. ReRiff allocates slots, supplies missing donor
