@@ -408,23 +408,31 @@ files and the game installation are not modified. Choose **Replace donor car**
 or **Add as a new car**; the latter requires ReRiff automatic car-slot support.
 Export subsequent editor adjustments to another folder and install only that final copy.
 
-This first converter deliberately uses original donor materials and textures.
-Source PBR properties, textures and vertex colors are not imported. UV0 is retained,
-UV1 duplicates UV0, supplied normals are transformed correctly (or generated when
-absent), and tangent bases are regenerated. Missing UVs become zero UVs, so add a
-proper UV layout before authoring a PNG livery. Required glTF extensions,
-compressed/sparse/normalized accessors, animations, skins and morph targets are
-refused. External .gltf files and FBX are not supported; export a static GLB first.
+The converter imports base-color textures for chrome, front-chrome, interior and
+wheel-rim parts. Each image is resized to a native power-of-two size, given a full
+mip chain, encoded as DXT1 (opaque) or DXT5 (alpha), and added to the donor's
+texture atlas. Material records are cloned from a suitable donor material, renamed,
+and pointed at the new texture; shader parameters are retained. The import dialog
+lists the resulting texture names and sizes. Painted body panels stay on the
+native car-paint material, and glass and tyres keep native materials. Source
+metallic/roughness, normal, occlusion and emissive maps, vertex colors and base
+color factors are not converted. UV0 is retained, UV1 duplicates UV0, supplied
+normals are transformed correctly (or generated when absent), and tangent bases
+are regenerated. Missing UVs become zero UVs, so add a proper UV layout before
+authoring a PNG livery. Required glTF extensions, compressed/sparse/normalized
+accessors, animations, skins and morph targets are refused. External .gltf files
+and FBX are not supported; export a static GLB first.
 
-The native writer copies donor material/parameter bytes and mesh record templates,
-rebuilds geometry, links and bounds, and decodes its output for validation. It
-supports understood 24/36-byte generated vertex layouts and enforces the native
-16-bit absolute index limit; simplify an oversized model instead of truncating it.
-Donors without the required named body/four-wheel layout or compatible car-paint
-layout are omitted. A missing material role stops conversion with an explanation.
-The donor's original collision, driving setup, animation, shadow and effect meshes
-are retained. Use the placement editor for HUD/NOS adjustments; collision, effects,
-wheel animation and visual alignment require an in-game test.
+The native writer clones donor material and parameter records, patches names and
+texture slots, rebuilds the material, parameter and texture tables, and decodes
+its output for validation. It supports understood 24/36-byte generated vertex
+layouts and enforces the native 16-bit absolute index limit; simplify an oversized
+model instead of truncating it. Donors without the required named body/four-wheel
+layout or compatible car-paint layout are omitted. A missing material role stops
+conversion with an explanation. The donor's original collision, driving setup,
+animation, shadow and effect meshes are retained. Use the placement editor for
+HUD/NOS adjustments; collision, effects, wheel animation, texture orientation and
+visual alignment require an in-game test.
 
 `model-import.json` records input/donor/output hashes, conversion options, part
 assignments, dimensions and limitations. Include the model author's attribution

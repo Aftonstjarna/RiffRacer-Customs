@@ -103,7 +103,7 @@ inline uint16_t rgb565(const Pixel &p) { return uint16_t(((p[0]*31+127)/255)<<11
 inline Pixel rgb(uint16_t p) { return {int((p>>11)*255/31),int(((p>>5)&63)*255/63),int((p&31)*255/31),255}; }
 // Small deterministic BC2/BC3 encoder. Bounding-box endpoints prioritize a
 // dependency-free first authoring milestone; photographic quality is limited.
-inline Bytes encodeLevel(const Image &im, bool bc2) {
+inline Bytes encodeLevel(const Image &im, bool bc2, bool colorOnly=false) {
     Bytes out;
     for(unsigned by=0;by<im.height;by+=4) for(unsigned bx=0;bx<im.width;bx+=4) {
         std::array<Pixel,16> p{}; Pixel lo{255,255,255,255},hi{0,0,0,0};
@@ -112,7 +112,8 @@ inline Bytes encodeLevel(const Image &im, bool bc2) {
             for(int c=0;c<4;c++) { int v=im.pixels[off+c]; p[y*4+x][c]=v; lo[c]=std::min(lo[c],v); hi[c]=std::max(hi[c],v); }
         }
         uint64_t bits=0;
-        if(bc2) { for(int i=0;i<16;i++) bits|=uint64_t((p[i][3]*15+127)/255)<<(i*4); for(int i=0;i<8;i++) out.push_back(uint8_t(bits>>(8*i))); }
+        if(colorOnly) { /* BC1 keeps only the color block below. */ }
+        else if(bc2) { for(int i=0;i<16;i++) bits|=uint64_t((p[i][3]*15+127)/255)<<(i*4); for(int i=0;i<8;i++) out.push_back(uint8_t(bits>>(8*i))); }
         else {
             int a=hi[3],b=lo[3]; if(a==b) { if(a<255) ++a; else --b; }
             out.push_back(uint8_t(a)); out.push_back(uint8_t(b));
