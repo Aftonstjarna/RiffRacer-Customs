@@ -1,4 +1,4 @@
-# RiffRacer Customs 0.3.0
+# RiffRacer Customs 0.3.0-beta.1
 
 ## In-game summary
 
