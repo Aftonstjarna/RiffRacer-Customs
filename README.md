@@ -28,9 +28,37 @@ The AnyLinux package includes GTK, glibc and fonts using
 It supports glibc and musl distributions and falls back to extraction when
 FUSE is unavailable. It requires an x86-64 Linux desktop (X11 or Wayland).
 
+## Updates
+
+RiffRacer Customs checks GitHub and installs a newer published package from
+inside the editor. The installed version is shown in the update window.
+
+- **Stable** is the default channel and only follows GitHub's latest
+  non-prerelease release. **Beta** is opt-in and only follows prereleases;
+  publishing a beta never moves the stable channel.
+- Releases are ordered by publication time, not by tag order. Tags use the
+  `vX.Y.Z` release version, the package filename is derived from it, and a
+  channel switch reinstalls that channel even when the version text matches.
+- The updater accepts only the package named for the selected release version
+  and this platform. It downloads to a temporary file and verifies the package
+  size and SHA-256 against the release `SHA256SUMS`. A missing checksum entry,
+  ambiguous asset, size mismatch or digest mismatch stops the update.
+- On Linux the verified AppImage replaces the running file and restarts the
+  editor; keep the AppImage in a writable folder. On Windows the editor closes,
+  the verified package replaces the portable folder contents with PowerShell,
+  and the editor restarts. Keep that folder writable.
+- Cancelled or failed updates leave the installed editor unchanged. Automatic
+  checks are cached for 15 minutes and can be disabled; manual checks always
+  contact GitHub, and the editor remains fully usable offline.
+- Edits are held in memory until exported. Export pending work before
+  installing an update, because the editor closes to replace its files.
+
+The release check can also run without the window:
+`./reriff-livery-maker --check-updates [stable|beta]`.
+
 ## Development
 
-Dependencies: C++17 compiler, GTK3 development libraries, libpng, zlib and OpenSSL.
+Dependencies: C++17 compiler, GTK3 development libraries, libpng, zlib, OpenSSL and libcurl.
 
 ```sh
 make -C LiveryMaker all test

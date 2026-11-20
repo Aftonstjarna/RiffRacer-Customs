@@ -20,11 +20,13 @@ jobs:
             'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu noble-security main universe' > "$sources"
           options=(-o "Dir::Etc::sourcelist=$sources" -o 'Dir::Etc::sourceparts=-' -o APT::Update::Error-Mode=any -o Acquire::Retries=1 -o Acquire::https::Timeout=20)
           sudo apt-get "${options[@]}" update
-          sudo apt-get "${options[@]}" install -y g++ pkg-config libgtk-3-dev libpng-dev zlib1g-dev libssl-dev xvfb
+          sudo apt-get "${options[@]}" install -y g++ pkg-config libgtk-3-dev libpng-dev zlib1g-dev libssl-dev libcurl4-openssl-dev xvfb
       - name: Build and test
         run: |
           make -C LiveryMaker all test
           xvfb-run -a build/livery-maker/reriff-livery-maker --smoke-package build/linux-smoke.png
+          xvfb-run -a build/livery-maker/reriff-livery-maker --smoke-update-dialog build/update-dialog.png
+          test -s build/update-dialog.png
   anylinux:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -69,6 +71,7 @@ jobs:
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-gtk3
             mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-curl
             mingw-w64-ucrt-x86_64-python
       - name: Build and test native Windows executable
         run: make -C LiveryMaker OUT=../build/windows APP=RiffRacer-Customs EXEEXT=.exe LDFLAGS=-mwindows all test
@@ -88,6 +91,12 @@ jobs:
           Get-Content build/windows/package-stderr.txt
           if ($process.ExitCode -ne 0) { throw "Package smoke failed: $($process.ExitCode)" }
           if (!(Test-Path build/windows/package-smoke.png)) { throw 'Package screenshot missing' }
+          $updates = Start-Process -FilePath "$package/RiffRacer-Customs.exe" -ArgumentList '--smoke-update-dialog', 'build/windows/update-dialog.png' -WorkingDirectory $PWD -Wait -PassThru -RedirectStandardError 'build/windows/update-stderr.txt' -RedirectStandardOutput 'build/windows/update-stdout.txt'
+          Get-Content build/windows/update-stdout.txt
+          Get-Content build/windows/update-stderr.txt
+          if ($updates.ExitCode -ne 0) { throw "Update dialog smoke failed: $($updates.ExitCode)" }
+          if (!(Test-Path build/windows/update-dialog.png)) { throw 'Update dialog screenshot missing' }
+          if (!(Test-Path "$package/etc/ssl/certs/ca-bundle.crt")) { throw 'TLS certificate bundle missing from package' }
       - uses: actions/upload-artifact@v6
         with:
           name: windows-release
@@ -101,3 +110,5 @@ jobs:
             build/windows/test-livery.exe
             build/windows/package-*.png
             build/windows/package-*.txt
+            build/windows/update-*.png
+            build/windows/update-*.txt

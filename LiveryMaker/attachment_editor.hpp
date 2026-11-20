@@ -6,6 +6,7 @@
 #include "multiplier_style.hpp"
 #include "car_preview.hpp"
 #include "model_import_ui.hpp"
+#include "update_ui.hpp"
 #include <gtk/gtk.h>
 namespace livery {
 class AttachmentEditor {
@@ -14,6 +15,7 @@ class AttachmentEditor {
     std::array<GtkWidget*,9> fields_{};bool updating_=false,unsaved_=false;
     std::string currentCar_;size_t selected_=0,paintIndex_=0;
     GtkWidget *exportMode_{},*exportButton_{},*migrationInfo_{};
+    std::unique_ptr<update::UpdatePanel> updates_{};
     std::map<std::string,GtkWidget*> migrationDonors_,fallbackCars_;
     bool legacyOrigin_=false;
     void refreshMigration(){
@@ -370,6 +372,12 @@ class AttachmentEditor {
 public:
     bool restartRequested=false;int requestedAction=-1;std::string requestedPath;int windowWidth=1100,windowHeight=760;bool maximized=false;
     AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);}
+    bool confirmUpdate(){
+        if(!unsaved_)return true;
+        auto *question=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Installing the update closes RiffRacer Customs. Adjustments that have not been exported will be lost. Continue?");
+        int answer=gtk_dialog_run(GTK_DIALOG(question));gtk_widget_destroy(question);
+        return answer==GTK_RESPONSE_YES;
+    }
     void build(GtkWindow *parent){
         dialog_=gtk_dialog_new_with_buttons("RiffRacer Customs",parent,GTK_DIALOG_MODAL,"Close",GTK_RESPONSE_CLOSE,nullptr);gtk_window_set_default_size(GTK_WINDOW(dialog_),windowWidth,windowHeight);if(maximized)gtk_window_maximize(GTK_WINDOW(dialog_));
         auto *content=gtk_dialog_get_content_area(GTK_DIALOG(dialog_));gtk_container_set_border_width(GTK_CONTAINER(content),12);
@@ -383,6 +391,8 @@ public:
         gtk_box_pack_start(GTK_BOX(top),gtk_label_new("Paint"),false,false,0);gtk_box_pack_start(GTK_BOX(top),paint_,false,false,0);
         adjustButton_=gtk_toggle_button_new_with_label("Adjust HUD / boosters");gtk_box_pack_start(GTK_BOX(top),adjustButton_,false,false,0);
         auto *exportButton=gtk_button_new_with_label("Export mod");exportButton_=exportButton;gtk_box_pack_end(GTK_BOX(top),exportButton,false,false,0);buildExportMode(top);
+        updates_=std::make_unique<update::UpdatePanel>(CUSTOMS_VERSION,[this]{return confirmUpdate();},[]{std::exit(0);});
+        updates_->buildButton(top);
         auto *paned=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);gtk_box_pack_start(GTK_BOX(content),paned,true,true,5);
         auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_widget_set_size_request(scroll,285,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
         auto *controls=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(controls),8);gtk_container_add(GTK_CONTAINER(scroll),controls);
@@ -457,7 +467,7 @@ public:
         const std::string prefix="assets/graphics/vehicles/";for(const auto &file:mod_.files){auto path=lower(file.first);if(path.rfind(prefix,0)==0&&path.size()==prefix.size()+3+17&&path.substr(path.size()-17)=="/lod0_livery.bdae"){gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),path.substr(prefix.size(),3).c_str());break;}}
         gtk_widget_show_all(dialog_);
     }
-    void run(GtkWindow *parent){build(parent);for(;;){gtk_dialog_run(GTK_DIALOG(dialog_));if(!unsaved_)break;auto *q=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Discard adjustments that have not been exported?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer==GTK_RESPONSE_YES)break;}gtk_window_get_size(GTK_WINDOW(dialog_),&windowWidth,&windowHeight);maximized=gtk_window_is_maximized(GTK_WINDOW(dialog_));gtk_widget_destroy(dialog_);dialog_=nullptr;}
+    void run(GtkWindow *parent){build(parent);if(updates_)updates_->autoCheck();for(;;){gtk_dialog_run(GTK_DIALOG(dialog_));if(!unsaved_)break;auto *q=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Discard adjustments that have not been exported?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer==GTK_RESPONSE_YES)break;}gtk_window_get_size(GTK_WINDOW(dialog_),&windowWidth,&windowHeight);maximized=gtk_window_is_maximized(GTK_WINDOW(dialog_));gtk_widget_destroy(dialog_);dialog_=nullptr;}
     void smokeMigration(const fs::path &out){
         require(legacyOrigin_,"Migration fixture already has origin metadata");auto missing=mod_.unresolvedOrigins();auto incompatible=mod_.incompatibleOrigins();
         require(!missing.empty()||!incompatible.empty(),"Migration fixture needs an unknown or incompatible car ID");

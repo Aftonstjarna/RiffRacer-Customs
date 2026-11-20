@@ -20,6 +20,8 @@ struct RuntimeCache {
 static void prepareRuntime() {
     gchar *directory=g_win32_get_package_installation_directory_of_module(nullptr);
     auto root=fs::u8path(directory);g_free(directory);
+    auto certificates=root/"etc"/"ssl"/"certs"/"ca-bundle.crt";
+    if(fs::is_regular_file(certificates)){g_setenv("CURL_CA_BUNDLE",certificates.u8string().c_str(),true);g_setenv("SSL_CERT_FILE",certificates.u8string().c_str(),true);}
     if(!fs::is_directory(root/"share"/"glib-2.0"/"schemas"))return;
     auto env=[&](const char *key,const fs::path &value){g_setenv(key,value.u8string().c_str(),true);};
     env("GTK_DATA_PREFIX",root);env("XDG_DATA_DIRS",root/"share");
@@ -426,6 +428,25 @@ int main(int argc,char **argv) {
         if(argc==2 && std::string(argv[1])=="--smoke-restore") {
             gtk_init(&argc,&argv);App app;app.build();require(app.restore() && app.model,"Saved folder did not reopen");
             std::cout<<"PASS reopened "<<app.gameFolder<<'\n';return 0;
+        }
+        if(argc==3 && std::string(argv[1])=="--smoke-update-dialog") {
+            gtk_init(&argc,&argv);
+            update::UpdatePanel panel(CUSTOMS_VERSION,[]{return true;},[]{});
+            panel.renderPreview(fs::u8path(argv[2]));
+            std::cout<<"PASS update dialog layout and release notes\n";return 0;
+        }
+        if(argc>=2 && std::string(argv[1])=="--check-updates") {
+            auto settings=update::readSettings();
+            auto channel=argc>=3?update::channelFromKey(argv[2]):settings.channel;
+            auto state=std::make_shared<update::State>();
+            update::checkWorker(state,channel,true);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if(state->stage!=update::Stage::Ready) {std::cerr<<state->error<<'\n';return 1;}
+            std::cout<<"channel="<<update::channelKey(channel)<<" installed="<<CUSTOMS_VERSION
+                     <<" latest="<<state->version<<" install="<<(state->installable?"yes":"no")
+                     <<" asset="<<state->asset<<"\n";
+            if(!state->notes.empty())std::cout<<state->notes<<'\n';
+            return 0;
         }
         gtk_init(&argc,&argv);std::string folder=argc==2?argv[1]:rememberedFolder();fs::path mod;int width=1100,height=760;bool maximized=false;
         for(;;){
