@@ -155,7 +155,7 @@ inline Image diagnostic(const Texture &t) {
 struct Target { std::string car,name,member; Bytes batch; Texture texture; Json packs; };
 // Original localization: group descriptors, 256-word lookup table, then
 // group-byte/NUL-terminated token records. Strings follow each group's order.
-template<class Load> inline std::map<std::string,std::string> displayNamesFrom(Load load) {
+template<class Load> inline std::map<std::string,std::string> displayNamesFrom(Load load,const std::string &locale="us") {
     const auto tokens=load("strings/tokens.dat");
     require(u32(tokens,0)==3 && u32(tokens,4)==2,"Unsupported localization tokens");
     const auto count=u32(tokens,8);require(count>0 && count<=32,"Invalid localization groups");
@@ -167,7 +167,7 @@ template<class Load> inline std::map<std::string,std::string> displayNamesFrom(L
         std::string name(tokens.begin()+cursor,tokens.begin()+cursor+length);cursor+=length;
         require(name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")==std::string::npos,"Invalid localization group name");
         if(!entries)continue;
-        auto strings=load("strings/"+lower(name)+"/us.str");
+        auto strings=load("strings/"+lower(name)+"/"+locale+".str");
         require(u32(strings,0)==3 && u32(strings,4)==2,"Unsupported localized strings");size_t offset=8;
         for(unsigned i=0;i<entries;i++) {
             auto units=u32(strings,offset);offset+=4;require(units<=100000 && offset<=strings.size() && uint64_t(units)*2<=strings.size()-offset,"Truncated localized string");

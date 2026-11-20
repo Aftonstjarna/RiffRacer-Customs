@@ -21,7 +21,9 @@ template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const 
     for(unsigned i=0;i<count;i++){auto length=u32(tokens,at),entries=u32(tokens,at+4);at+=12;require(length<=tokens.size()-at,"Invalid group name");groups.emplace_back(tokens.begin()+at,tokens.begin()+at+length);counts.push_back(entries);at+=length;}
     at+=1024;require(at<=tokens.size(),"Missing token table");while(at<tokens.size()){auto group=tokens[at++];require(group<count&&used[group]<counts[group],"Invalid token index");auto token=lower(text(tokens,at,tokens.size()-at));at+=token.size()+1;auto change=changes.find(token);if(change!=changes.end()){edits[group][used[group]]=change->second;found.insert(token);}++used[group];}
     require(found.size()==changes.size(),"Name token missing from imported localization");std::map<std::string,Bytes> result;
-    for(const auto &group:edits){auto path="strings/"+lower(groups[group.first])+"/us.str";auto original=load(path);require(u32(original,0)==3&&u32(original,4)==2,"Unsupported string bank");Bytes out(original.begin(),original.begin()+8);at=8;
+    // US and GB share the English car and paint names; patch both so the name
+    // matches whichever English locale the game uses.
+    for(const auto &group:edits)for(const char *locale:{"us","gb"}){auto path="strings/"+lower(groups[group.first])+"/"+locale+".str";auto original=load(path);require(u32(original,0)==3&&u32(original,4)==2,"Unsupported string bank");Bytes out(original.begin(),original.begin()+8);at=8;
         for(unsigned i=0;i<counts[group.first];i++){auto units=u32(original,at);require(at+4<=original.size()&&uint64_t(units)*2<=original.size()-at-4,"Truncated localized string");auto edit=group.second.find(i);
             if(edit==group.second.end())out.insert(out.end(),original.begin()+at,original.begin()+at+4+units*2);
             else {require(!edit->second.empty()&&edit->second.size()<=240,"Name must contain 1–240 UTF-8 bytes");auto utf16=nameUTF16(edit->second);require(utf16.find(u'\0')==std::u16string::npos,"Name contains NUL");put32(out,uint32_t(utf16.size()));for(auto c:utf16)put16(out,c);}

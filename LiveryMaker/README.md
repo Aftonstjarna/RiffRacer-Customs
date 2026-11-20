@@ -299,7 +299,8 @@ controls and guides only when requested; turn it off to return to paint preview.
   or imported liveries. **Remove livery** clears its decal. **Reset paint and
   livery** restores that paint's imported appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
-  names**. This updates English localized strings while retaining internal IDs.
+  names**. This updates the US and GB English localized strings while retaining
+  internal IDs.
   Names sharing a localization token change together. UTF-8 names are converted
   to the native UTF-16 string bank; unrelated strings remain intact.
 - **Use this paint as default** copies the selected appearance into the native
