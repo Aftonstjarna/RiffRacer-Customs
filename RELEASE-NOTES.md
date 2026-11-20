@@ -1,3 +1,46 @@
+# RiffRacer Customs 0.3.0-beta.3
+
+## In-game summary
+
+- Update RiffRacer Customs from inside the editor.
+- Choose stable releases or opt in to beta prereleases.
+- Every update is verified by SHA-256 before installing.
+
+## Full release notes
+
+- Add **Check for updates…** to the main toolbar. The update window shows the
+  installed version, update channel, release notes, download progress and an
+  install button.
+- Stable is the default channel and follows GitHub's latest non-prerelease
+  release. Beta is opt-in and follows prereleases only. A beta build starts on
+  the beta channel.
+- Order releases by publication time, not tag order. The package filename is
+  derived from the release version, and a channel switch reinstalls that
+  channel even when the version text matches.
+- Verify the selected package against the release size, the published SHA-256
+  digest and `SHA256SUMS`. A missing or duplicate asset, size mismatch or
+  digest mismatch stops the update and leaves the installed editor unchanged.
+- Replace the running AppImage atomically on Linux and restart it. On Windows,
+  close the editor, swap the portable folder with rollback, then restart. Keep
+  the program folder writable.
+- Cache automatic startup checks for 15 minutes and allow disabling them.
+  Manual checks always contact GitHub, and a failed check never blocks editing.
+- Bundle the Windows TLS certificate authorities and add
+  `--check-updates [stable|beta]` for headless diagnostics.
+
+Validation: updater tests cover channel isolation, publication ordering,
+drafts, asset selection, checksum parsing and install decisions. A real release
+download was checksum-verified, the Linux replacement path was exercised end to
+end, and both packaged update windows are smoke-tested in CI. The Windows
+package includes its certificate bundle.
+
+Limitations: install this release manually once; later releases update in
+place. Windows updates require PowerShell 5 and a writable program folder, and
+Linux self-updates require the AppImage build. Export pending edits before
+installing, because the editor closes to replace its files.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.2
 
 ## In-game summary
