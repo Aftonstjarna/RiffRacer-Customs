@@ -1,3 +1,39 @@
+# RiffRacer Customs 0.3.0-beta.2
+
+## In-game summary
+
+- Pick which stock car appears when a custom car is missing.
+- Keep the donor separate for assets, saves and shared ghosts.
+- Set the fallback per authored car in origin.txt.
+
+## Full release notes
+
+- Add a **Missing-car fallback** section to the editor for every authored car.
+  Choose any stock car, or **Same as donor** to omit the setting and keep the
+  donor.
+- Write the optional `[fallbacks]` section to `origin.txt` beside the existing
+  `[origins]` donor mappings. Each entry is **authored car ID = stock fallback**.
+- Keep the fallback independent of the donor: the donor still supplies copied
+  assets, configuration, save identity and shared-ghost identity.
+- Preserve imported fallback metadata byte-for-byte until it is changed, like
+  other imported metadata. Exports, reimports, renames and metadata-only edits
+  retain the declared value.
+- Refuse unknown, malformed, unmapped, runtime and custom-car fallbacks instead
+  of guessing. Erasing a fallback restores donor behaviour.
+- Read the setting with ReRiff 1.4.1-beta.7 or newer. Older clients ignore the
+  section and keep using the donor; the original game sees no change.
+
+Validation: automated origin fallback set/reset, export/reimport, metadata
+preservation and editor selector checks, plus the existing geometry, texture,
+HUD, snapping, model import and unlock checks. Windows and Linux portable
+packages are built and smoke-tested.
+
+Limitations: the fallback must be a stock car and only applies when the custom
+car's slot is unavailable; it does not install missing assets or bypass a
+disabled mod. Authoring remains save-safe and does not modify game saves.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.1
 
 ## In-game summary
