@@ -10,13 +10,13 @@ APP ?= reriff-livery-maker
 LIBS = -lpng -lz -lcrypto $(shell pkg-config --libs libcurl)
 CURLFLAGS = $(shell pkg-config --cflags libcurl)
 all: $(OUT)/$(APP)$(EXEEXT)
-$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp config_author.hpp economy.hpp car_preview.hpp car_hud_preview.hpp mod_editor.hpp mod_appearance.hpp mod_names.hpp surface_snap.hpp attachment_editor.hpp multiplier_style.hpp model_import.hpp model_import_ui.hpp texture_encode.hpp update_channel.hpp update_ui.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
+$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp config_author.hpp economy.hpp car_preview.hpp car_hud_preview.hpp mod_editor.hpp mod_appearance.hpp mod_names.hpp surface_snap.hpp attachment_editor.hpp multiplier_style.hpp model_import.hpp model_import_ui.hpp texture_encode.hpp decimate.hpp update_channel.hpp update_ui.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(CURLFLAGS) main.cpp -o $@ $$(pkg-config --cflags --libs gtk+-3.0) $(LIBS) $(LDFLAGS)
 $(OUT)/test-livery$(EXEEXT): test.cpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test.cpp -o $@ $(LIBS) $(LDFLAGS)
-test: $(OUT)/test-livery$(EXEEXT) $(OUT)/test-origin$(EXEEXT) $(OUT)/test-model-import$(EXEEXT) $(OUT)/test-car-hud$(EXEEXT) $(OUT)/test-surface-snap$(EXEEXT) $(OUT)/test-update$(EXEEXT) $(OUT)/test-texture$(EXEEXT)
+test: $(OUT)/test-livery$(EXEEXT) $(OUT)/test-origin$(EXEEXT) $(OUT)/test-model-import$(EXEEXT) $(OUT)/test-car-hud$(EXEEXT) $(OUT)/test-surface-snap$(EXEEXT) $(OUT)/test-update$(EXEEXT) $(OUT)/test-texture$(EXEEXT) $(OUT)/test-decimate$(EXEEXT)
 	$(OUT)/test-livery$(EXEEXT)
 	$(OUT)/test-origin$(EXEEXT)
 	$(OUT)/test-model-import$(EXEEXT)
@@ -24,6 +24,7 @@ test: $(OUT)/test-livery$(EXEEXT) $(OUT)/test-origin$(EXEEXT) $(OUT)/test-model-
 	$(OUT)/test-surface-snap$(EXEEXT)
 	$(OUT)/test-update$(EXEEXT)
 	$(OUT)/test-texture$(EXEEXT)
+	$(OUT)/test-decimate$(EXEEXT)
 .PHONY: all test
 
 $(OUT)/test-mod-editor$(EXEEXT): test_mod_editor.cpp mod_editor.hpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp
@@ -65,3 +66,7 @@ $(OUT)/test-update$(EXEEXT): test_update.cpp update_channel.hpp core.hpp
 $(OUT)/test-texture$(EXEEXT): test_texture.cpp texture_encode.hpp core.hpp ../NativeLinux/native_assets.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test_texture.cpp -o $@ -lpng -lz -lcrypto $(LDFLAGS)
+
+$(OUT)/test-decimate$(EXEEXT): test_decimate.cpp decimate.hpp
+	mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) test_decimate.cpp -o $@ $(LDFLAGS)

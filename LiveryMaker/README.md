@@ -417,13 +417,25 @@ bounding box. Material records are cloned from a suitable donor material,
 renamed, and pointed at the new texture. The import dialog lists the resulting
 texture names and sizes.
 
-**Materials…** opens per-category controls: a native template, texture size
-(256, 512 or 1024), finish preset (template default, matte, satin, glossy or
-chrome) and whether to import the texture at all. A finish rewrites only the
-cloned material's specular and reflection parameters. Painted body panels stay
-on the native car-paint material, and glass and tyres keep native materials.
-Source metallic/roughness, normal, occlusion and emissive maps, vertex colors
-and base color factors are not converted. UV0 is retained, UV1 duplicates UV0, supplied
+**Detail level** chooses the polygon and texture budget:
+
+- **Light** uses about 20% of the source triangles, including the body, and
+  caps textures at 512 px for slower machines.
+- **Vanilla-matched** (default) keeps the low-poly body intact, fits the other
+  parts to the donor body/wheel triangle budget, and uses the per-material
+  512/1024 px sizes.
+- **High** targets 1.8× the donor budget with at least 1024 px detail textures.
+- **Full source** skips decimation and allows up to 2048 px detail textures.
+
+The result is a target budget rather than an exact count, and small parts keep
+a minimum triangle count. **Materials…** opens per-category controls: a native
+template, texture size (256, 512, 1024 or 2048), finish preset (template
+default, matte, satin, glossy or chrome) and whether to import the texture at
+all. A finish rewrites only the cloned material's specular and reflection
+parameters. Painted body panels stay on the native car-paint material, and
+glass and tyres keep native materials. Source metallic/roughness, normal,
+occlusion and emissive maps, vertex colors and base color factors are not
+converted. UV0 is retained, UV1 duplicates UV0, supplied
 normals are transformed correctly (or generated when absent), and tangent bases
 are regenerated. Missing UVs become zero UVs, so add a proper UV layout before
 authoring a PNG livery. Required glTF extensions, compressed/sparse/normalized
@@ -436,7 +448,12 @@ its output for validation. It supports understood 24/36-byte generated vertex
 layouts and enforces the native 16-bit absolute index limit; simplify an oversized
 model instead of truncating it. Donors without the required named body/four-wheel
 layout or compatible car-paint layout are omitted. A missing material role stops
-conversion with an explanation. The donor's original collision, driving setup,
+conversion with an explanation.
+
+**Fit collision hull** (default on) maps the donor collision hull to the imported
+wheel width and body length/roof height, keeps the donor's ground clearance, and
+updates the hull's broadphase bounds. Hull topology and collision surface data
+stay the donor's, and `collision.btinfo` is unchanged. The donor's driving setup,
 animation, shadow and effect meshes are retained. Use the placement editor for
 HUD/NOS adjustments; collision, effects, wheel animation, texture orientation and
 visual alignment require an in-game test.
