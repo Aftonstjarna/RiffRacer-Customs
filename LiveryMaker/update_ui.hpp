@@ -549,12 +549,17 @@ public:
     UpdatePanel &operator=(const UpdatePanel &) = delete;
 
     void buildButton(GtkWidget *row) {
-        button_ = gtk_button_new_with_label("Check for updates…");
+        button_ = gtk_button_new_with_label("Updates…");
         gtk_box_pack_end(GTK_BOX(row), button_, false, false, 0);
         gtk_widget_set_tooltip_text(button_, ("RiffRacer Customs " + version_ +
             ". Stable updates are recommended; beta updates are opt-in prereleases. Every package is verified with SHA-256 before installation.").c_str());
         g_signal_connect(button_, "clicked", G_CALLBACK(+[](GtkButton *, gpointer data) {
             static_cast<UpdatePanel *>(data)->openDialog();
+        }), this);
+        g_signal_connect(gtk_widget_get_toplevel(row), "destroy", G_CALLBACK(+[](GtkWidget *, gpointer data) {
+            auto &panel = *static_cast<UpdatePanel *>(data);
+            panel.button_ = nullptr;
+            panel.state_->cancel = true;
         }), this);
         showResultFile();
     }
@@ -778,7 +783,7 @@ private:
         }
         std::string label = stage == Stage::Ready && available && installable
                                 ? "Update available: " + version
-                                : "Check for updates…";
+                                : "Updates…";
         if (button_ && label != buttonLabel_) {
             buttonLabel_ = label;
             gtk_button_set_label(GTK_BUTTON(button_), label.c_str());

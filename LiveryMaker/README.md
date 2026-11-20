@@ -362,18 +362,19 @@ cars using the remembered game folder. On the first run, choose the game folder.
 The old standalone paint window is no longer part of the normal interface.
 
 The top toolbar contains **Open game folder**, **Import mod folder**, **Import
-mod ZIP**, **Stock cars / new mod**, and **Check for updates…**. Opening a
+mod ZIP**, **Stock cars / new mod**, and **Updates…**. Opening a
 different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
 The sidebar also includes **Add PNG decal**, **Make test livery**, and **Save UV
 template**, alongside paint colors, names, defaults, PNG import/save and reset.
-The preview selector supports Painted + Livery, Car preview, Texture preview,
-Original artwork, and UV template. Placement stays behind Adjust HUD / boosters.
+The preview selector sits between **Paint** and **Adjust HUD / boosters** in the
+toolbar and supports Painted + Livery, Car preview, Texture preview, Original
+artwork, and UV template. Placement stays behind Adjust HUD / boosters.
 **Export mod** writes the current stock edits or the combined imported-mod edits.
 
-**Check for updates…** opens the update window. Stable is the default channel
+**Updates…** opens the update window. Stable is the default channel
 and follows GitHub's latest non-prerelease release; beta is opt-in and follows
 prereleases only. The window shows the release notes, the verified package
 size and the SHA-256 check before installing. Updates replace the running
