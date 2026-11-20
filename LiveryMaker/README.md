@@ -476,6 +476,9 @@ overwrite=0
 
 [origins]
 alf=alf
+
+[fallbacks]
+alf=fab
 ```
 
 Each mapping is **authored car ID = stock donor ID**. `alf` is Pulse; model
@@ -483,6 +486,14 @@ conversion uses the chosen donor's actual ID. Imported mappings are retained.
 **Replace donor car** writes `overwrite=1`; **Add as a new car** writes
 `overwrite=0`. The package ID is generated once and survives edits, repeated
 exports, reimports and folder renames. Separate new projects receive different IDs.
+
+`[fallbacks]` is optional and names the stock car shown when the custom car's
+slot is unavailable, for example after its mod is disabled or removed. Choose it
+under **Missing-car fallback** in the editor, or as **Same as donor** to omit it.
+It is independent of the donor: the donor still supplies copied assets,
+configuration, save identity and ghost identity. An absent, invalid or
+unavailable fallback uses the donor. Keep it a stock car; runtime IDs and custom
+IDs are refused.
 
 Complete imported metadata stays byte-for-byte unchanged until its policy or
 mappings change. Legacy metadata receives missing identity and replacement policy.

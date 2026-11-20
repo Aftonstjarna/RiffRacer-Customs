@@ -14,7 +14,7 @@ class AttachmentEditor {
     std::array<GtkWidget*,9> fields_{};bool updating_=false,unsaved_=false;
     std::string currentCar_;size_t selected_=0,paintIndex_=0;
     GtkWidget *exportMode_{},*exportButton_{},*migrationInfo_{};
-    std::map<std::string,GtkWidget*> migrationDonors_;
+    std::map<std::string,GtkWidget*> migrationDonors_,fallbackCars_;
     bool legacyOrigin_=false;
     void refreshMigration(){
         auto missing=mod_.unresolvedOrigins();auto incompatible=mod_.incompatibleOrigins();
@@ -54,6 +54,21 @@ class AttachmentEditor {
         exportMode_=gtk_combo_box_text_new();gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(exportMode_),"replace","Replace donor car");gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(exportMode_),"add","Add as a new car");
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),mod_.originMetadata().overwrite()?"replace":"add");gtk_box_pack_end(GTK_BOX(controls),exportMode_,false,false,0);gtk_widget_set_tooltip_text(exportMode_,"Export mode for the whole package. Adding cars requires ReRiff automatic car-slot support. Re-exported copies retain their identity.");
         g_signal_connect(exportMode_,"changed",G_CALLBACK(+[](GtkComboBox *combo,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{auto origin=a.mod_.originMetadata();origin.setOverwrite(std::string(gtk_combo_box_get_active_id(combo))=="replace");a.mod_.setOriginMetadata(origin);a.unsaved_=true;});}),this);
+    }
+
+    void buildFallback(GtkWidget *controls){
+        auto origin=mod_.originMetadata();auto mappings=origin.mappings();if(mappings.empty())return;
+        auto *expander=gtk_expander_new("Missing-car fallback");gtk_box_pack_start(GTK_BOX(controls),expander,false,false,0);
+        auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_add(GTK_CONTAINER(expander),box);
+        auto *note=gtk_label_new("Stock car shown if this custom car is unavailable. Requires ReRiff 1.4.1-beta.7 or newer; the donor is used when unset.");gtk_label_set_line_wrap(GTK_LABEL(note),true);gtk_label_set_max_width_chars(GTK_LABEL(note),32);gtk_box_pack_start(GTK_BOX(box),note,false,false,0);
+        auto stockLabels=displayNames(stock_);auto declared=origin.fallbacks();
+        for(const auto &mapping:mappings){
+            auto title=localized(labels_,"car_"+mapping.first)+" ("+mapping.first+") — fallback";auto *label=gtk_label_new(title.c_str());gtk_label_set_line_wrap(GTK_LABEL(label),true);gtk_label_set_max_width_chars(GTK_LABEL(label),32);gtk_box_pack_start(GTK_BOX(box),label,false,false,0);
+            auto *combo=gtk_combo_box_text_new();gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo),"","Same as donor");for(const auto &donor:stockDonors()){auto name=localized(stockLabels,"car_"+donor);gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo),donor.c_str(),name.c_str());}
+            if(declared.count(mapping.first))gtk_combo_box_set_active_id(GTK_COMBO_BOX(combo),declared.at(mapping.first).c_str());else gtk_combo_box_set_active(GTK_COMBO_BOX(combo),0);
+            gtk_box_pack_start(GTK_BOX(box),combo,false,false,0);fallbackCars_[mapping.first]=combo;
+            g_signal_connect(combo,"changed",G_CALLBACK(+[](GtkComboBox *changed,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{std::string car;for(const auto &item:a.fallbackCars_)if(item.second==GTK_WIDGET(changed))car=item.first;if(car.empty())return;const char *selected=gtk_combo_box_get_active_id(changed);auto origin=a.mod_.originMetadata();if(!selected||!*selected)origin.eraseFallback(car);else origin.setFallback(car,selected);a.mod_.setOriginMetadata(origin);a.unsaved_=true;});}),this);
+        }
     }
 
     std::unique_ptr<Model> body_;PaintConfig *colors_{};std::unique_ptr<ModAppearance> appearance_;std::unique_ptr<Image> decalPreview_;Model nodes_;
@@ -372,6 +387,7 @@ public:
         auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_widget_set_size_request(scroll,285,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
         auto *controls=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(controls),8);gtk_container_add(GTK_CONTAINER(scroll),controls);
         buildMigration(controls);
+        buildFallback(controls);
         gtk_box_pack_start(GTK_BOX(controls),gtk_label_new("In-game car name"),false,false,0);carName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(carName_),80);gtk_box_pack_start(GTK_BOX(controls),carName_,false,false,0);
         gtk_box_pack_start(GTK_BOX(controls),gtk_label_new("In-game paint name"),false,false,0);paintName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(paintName_),80);gtk_box_pack_start(GTK_BOX(controls),paintName_,false,false,0);
         auto *applyNamesButton=gtk_button_new_with_label("Apply names");gtk_box_pack_start(GTK_BOX(controls),applyNamesButton,false,false,0);g_signal_connect(applyNamesButton,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.applyNames();});}),this);
@@ -479,7 +495,13 @@ public:
         mod_.exportCopy(out/"new-car-mod",extraFiles());ImportedMod newCar(out/"new-car-mod",&stock_);
         require(!newCar.originMetadata().overwrite()&&newCar.originMetadata().packageId()==identity,"GUI export choice or package identity lost");
         require(newCar.originMetadata().mappings().size()==1&&newCar.originMetadata().mappings().at("alf")=="alf","GUI registered untouched cars from shared config");
-        AttachmentEditor reopened(stock_,out/"new-car-mod");reopened.build(nullptr);require(std::string(gtk_combo_box_get_active_id(GTK_COMBO_BOX(reopened.exportMode_)))=="add","Imported export choice not shown");gtk_widget_destroy(reopened.dialog_);reopened.dialog_=nullptr;
+        AttachmentEditor reopened(stock_,out/"new-car-mod");reopened.build(nullptr);require(std::string(gtk_combo_box_get_active_id(GTK_COMBO_BOX(reopened.exportMode_)))=="add","Imported export choice not shown");
+        require(reopened.fallbackCars_.count("alf"),"Fallback selector missing for an authored car");auto *fallbackCombo=GTK_WIDGET(reopened.fallbackCars_.at("alf"));
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(fallbackCombo),"fab");require(reopened.mod_.originMetadata().fallbacks().at("alf")=="fab","Fallback selector did not update metadata");
+        reopened.mod_.exportCopy(out/"fallback-mod",reopened.extraFiles());ImportedMod fallbackCheck(out/"fallback-mod",&stock_);
+        require(fallbackCheck.originMetadata().fallbacks().at("alf")=="fab"&&fallbackCheck.originMetadata().mappings().at("alf")=="alf","Fallback export changed donor or lost fallback");
+        gtk_combo_box_set_active(GTK_COMBO_BOX(fallbackCombo),0);require(reopened.mod_.originMetadata().fallbacks().empty(),"Fallback reset did not restore donor fallback");
+        gtk_widget_destroy(reopened.dialog_);reopened.dialog_=nullptr;
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),"replace");
         UnlockConfig importedUnlocks(roundtrip,stock_);require(importedUnlocks.get("alf").value("songUnlock",std::string())=="GUI Title"&&appearance.colors->price(p)==321,"GUI unlock/price export failed");gtk_expander_set_expanded(GTK_EXPANDER(gtk_widget_get_parent(gtk_widget_get_parent(unlockMode_))),true);
         for(int wait=0;wait<30;wait++){while(gtk_events_pending())gtk_main_iteration();g_usleep(1000);}auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(dialog_),gtk_widget_get_allocated_height(dialog_));auto *cr=cairo_create(surface);gtk_widget_draw(dialog_,cr);cairo_destroy(cr);cairo_surface_write_to_png(surface,(out/"unified-editor.png").u8string().c_str());cairo_surface_destroy(surface);gtk_widget_destroy(dialog_);dialog_=nullptr;

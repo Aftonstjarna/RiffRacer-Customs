@@ -21,6 +21,17 @@ int main(){fs::path root;try{
  Origin custom(bytes(declaration));custom.complete(files);require(custom.bytes()==bytes(declaration),"Complete declaration changed");custom.setOverwrite(true);
  require(custom.bytes()==bytes(std::string(declaration).replace(declaration.find("overwrite=0"),11,"overwrite=1")),"Policy edit damaged comments or mappings");
  publishMod(files,Json::object(),out,custom);require(Origin(read((out/"origin.txt").u8string())).mappings().at("alf")=="bui","Explicit stock donor replaced");
+ std::string fallbackText="[mod]\nid=fallback-car\noverwrite=0\n\n[origins]\ndod=alf\n\n[fallbacks]\ndod=fab\n";
+ Origin fallback(bytes(fallbackText));require(fallback.mappings().at("dod")=="alf"&&fallback.fallbacks().at("dod")=="fab","Independent fallback or donor differs");
+ fallback.eraseFallback("dod");require(fallback.fallbacks().empty()&&Origin(fallback.bytes()).mappings().at("dod")=="alf","Fallback removal changed donor");
+ fallback.setFallback("dod","cor");require(Origin(fallback.bytes()).fallbacks().at("dod")=="cor","Fallback setter lost value");
+ refuses([&]{Origin invalid(bytes("[origins]\ndod=alf\n[fallbacks]\ndod=bogus\n"));});
+ refuses([&]{Origin invalid(bytes("[origins]\ndod=alf\n[fallbacks]\nr00=fab\n"));});
+ refuses([&]{fallback.setFallback("dod","bogus");});
+ refuses([&]{fallback.setFallback("xyz","fab");});
+ Origin orphan(bytes("[mod]\nid=orphan\noverwrite=0\n[origins]\ndod=alf\n[fallbacks]\nabc=fab\n"));refuses([&]{orphan.complete({{"graphics/vehicles/dod/nodes.bdae",{}}});});
+ Origin persistent(originText(files,"customs-fallback"));persistent.setFallback("alf","fab");publishMod(files,Json::object(),root/"fallback",persistent);
+ auto storedFallback=Origin(read((root/"fallback/origin.txt").u8string()));require(storedFallback.fallbacks().at("alf")=="fab"&&storedFallback.mappings().at("alf")=="alf","Exported fallback did not survive");
  write(out/"origin.txt",bytes("external change"));refuses([&]{publishMod(files,Json::object(),out,custom);});require(read((out/"origin.txt").u8string())==bytes("external change"),"External metadata overwritten");
  auto other=files;other["graphics/vehicles/xyz/nodes.bdae"]={4};refuses([&]{originText(other);});Origin mapped;mapped.setMapping("xyz","alf");mapped.complete(other);require(mapped.mappings().at("xyz")=="alf","Custom donor lost");
  Origin incomplete({},"legacy-needs-donor");incomplete.complete(other,false);

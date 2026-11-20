@@ -474,12 +474,22 @@ public:
         (void)entries();auto policy=value("mod","overwrite");require(!has("mod","overwrite")||policy=="0"||policy=="1","Origin overwrite must be 0 or 1");
         require(safeIdentity(packageId()),"Invalid origin package ID");
         for(const auto &mapping:mappings())require(authoredCarId(mapping.first)&&stockDonors().count(mapping.second),"Origin mapping needs an authored car ID and stock donor");
+        for(const auto &fallback:fallbacks())require(authoredCarId(fallback.first)&&stockDonors().count(fallback.second),"Origin fallback needs an authored car ID and stock donor");
     }
     std::string packageId() const {auto id=value("mod","id");return has("mod","id")?id:generatedId_;}
     bool overwrite() const {return value("mod","overwrite")!="0";}
     std::map<std::string,std::string> mappings() const {std::map<std::string,std::string> out;for(const auto &e:entries())if(e.section=="origins"&&e.key!="id"&&e.key!="overwrite")out[e.key]=e.value;return out;}
+    std::map<std::string,std::string> fallbacks() const {std::map<std::string,std::string> out;for(const auto &e:entries())if(e.section=="fallbacks")out[e.key]=e.value;return out;}
     void setOverwrite(bool replaceDonor){set("mod","overwrite",replaceDonor?"1":"0");}
     void setMapping(const std::string &authoredId,const std::string &stockDonor){require(authoredCarId(authoredId)&&stockDonors().count(stockDonor),"Origin mapping needs an authored car ID and stock donor");set("origins",authoredId,stockDonor);}
+    void setFallback(const std::string &authoredId,const std::string &stockFallback){
+        require(authoredCarId(authoredId)&&stockDonors().count(stockFallback),"Origin fallback needs an authored car ID and stock donor");
+        require(mappings().count(authoredId),"Fallback car has no donor mapping");set("fallbacks",authoredId,stockFallback);
+    }
+    void eraseFallback(const std::string &authoredId){
+        std::string text(raw_.begin(),raw_.end());
+        for(const auto &e:entries())if(e.section=="fallbacks"&&e.key==authoredId){size_t end=e.end<text.size()?e.end+1:e.end;text.erase(e.begin,end-e.begin);raw_=Bytes(text.begin(),text.end());return;}
+    }
     void complete(const std::map<std::string,Bytes> &files,bool strict=true) {
         if(!has("mod","id"))set("mod","id",generatedId_);
         if(!has("mod","overwrite"))setOverwrite(true);
@@ -490,6 +500,7 @@ public:
             if(stockDonors().count(id))setMapping(id,id);
             else require(!strict,"Custom car "+id+" needs an explicit stock donor mapping in origin.txt");
         }
+        for(const auto &fallback:fallbacks())require(!strict||mappings().count(fallback.first),"Fallback car "+fallback.first+" has no donor mapping");
     }
     const Bytes &bytes() const {return raw_;}
 };
