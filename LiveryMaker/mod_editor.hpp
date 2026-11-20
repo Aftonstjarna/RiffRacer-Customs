@@ -62,6 +62,7 @@ inline Matrix adjustedMatrix(const Matrix &base,const std::array<double,9> &valu
     return out;
 }
 class ImportedMod {
+    std::string packageId_=newPackageId();
     static void validPath(const std::string &s) {
         require(!s.empty() && s.front()!='/' && s.find('\\')==std::string::npos && s.find(':')==std::string::npos && s.find('\0')==std::string::npos,"Unsafe mod path");
         for(const auto &part:fs::u8path(s))require(part!=".." && part!=".","Unsafe mod path component");
@@ -102,6 +103,7 @@ public:
             for(const auto &file:files){auto name=lower(file.first);const std::string prefix="assets/graphics/vehicles/";
                 if(name.rfind(prefix,0)==0){auto rest=name.substr(prefix.size());if(rest.rfind("decals/",0)==0&&rest.size()>=13)candidates.insert(rest.substr(7,3));else candidates.insert(rest.substr(0,rest.find('/')));}
                 const std::string hud="assets/graphics/be/hud/car/";if(name.rfind(hud,0)==0){auto rest=name.substr(hud.size());candidates.insert(rest.substr(0,rest.find('/')));}
+                if(name=="assets/scripts/config/unlocks_pc.cfg"){auto config=cfgValue(Json::parse(Config(file.second).json()));for(const auto&id:config.at("carNames"))if(id.is_string()&&!id.get<std::string>().empty())candidates.insert(id.get<std::string>());}
                 if(name=="assets/scripts/config/paint_pc.cfg"){auto paints=cfgValue(Json::parse(Config(file.second).json())).at("Paints");for(auto car=paints.begin();car!=paints.end();++car)candidates.insert(car.key());}
             }
             for(const auto &id:candidates)if(!cars.count(id)&&id.size()==3){
@@ -109,6 +111,26 @@ public:
             }
         }
         require(!cars.empty(),"No supported car paint, livery or model found in this mod");
+    }
+    Origin originMetadata() const {
+        auto found=std::find_if(files.begin(),files.end(),[](const auto &entry){return lower(entry.first)=="origin.txt";});
+        Origin result(found==files.end()?Bytes{}:found->second,packageId_);result.complete(files,false);return result;
+    }
+    std::vector<std::string> unresolvedOrigins() const {
+        const auto declared=originMetadata().mappings();std::vector<std::string> unresolved;
+        for(const auto &id:discoveredCarIds(files))if(authoredCarId(id)&&!declared.count(id))unresolved.push_back(id);
+        return unresolved;
+    }
+    // Legacy runtime-slot or non-authored car IDs cannot be declared in origin.txt.
+    std::vector<std::string> incompatibleOrigins() const {
+        std::vector<std::string> incompatible;
+        for(const auto &id:discoveredCarIds(files))if(!authoredCarId(id))incompatible.push_back(id);
+        return incompatible;
+    }
+    void setOriginMetadata(const Origin &origin) {
+        auto completed=origin;completed.complete(files,false);
+        auto found=std::find_if(files.begin(),files.end(),[](const auto &entry){return lower(entry.first)=="origin.txt";});
+        if(found==files.end())files["origin.txt"]=completed.bytes();else found->second=completed.bytes();
     }
     Bytes assetBytes(const std::string &name,const Archive &stock) const {for(const auto &f:files)if(lower(f.first)=="assets/"+lower(name))return f.second;for(const auto &entry:stock.entries)if(lower(entry.name)==lower(name))return stock.load(entry);return asset(stock,name);}
     void exportCopy(const fs::path &destination,const std::map<std::string,Bytes> &overrides={}) const {
@@ -118,10 +140,16 @@ public:
         for(const auto &file:overrides){validPath(file.first);require(file.first.rfind("assets/",0)==0,"Override must be a game asset");auto found=std::find_if(exported.begin(),exported.end(),[&](const auto &entry){return lower(entry.first)==lower(file.first);});if(found==exported.end())exported[file.first]=file.second;else found->second=file.second;}
         Json changed=Json::array();
         for(const auto &car:cars)if(car.second->changed()){auto name="assets/graphics/vehicles/"+car.first+"/nodes.bdae";bool found=false;for(auto &f:exported)if(lower(f.first)==name){f.second=car.second->bytes();found=true;}if(!found)exported[name]=car.second->bytes();changed.push_back(name);}
+        // Preserve declared custom donors across re-export. Stock replacements
+        // can derive their origin directly from native resource IDs.
+        auto origin=std::find_if(exported.begin(),exported.end(),[](const auto &f){return lower(f.first)=="origin.txt";});
+        Origin declaration(origin==exported.end()?Bytes{}:origin->second,packageId_);declaration.complete(exported);
+        if(origin==exported.end())exported["origin.txt"]=declaration.bytes();else origin->second=declaration.bytes();
         // Refresh known editor ownership hashes rather than keeping stale claims.
         auto owner=exported.find("livery-maker.json");
         if(owner!=exported.end()){
             auto j=Json::parse(owner->second);require(j.value("tool","")=="reriff-livery-maker-v2","Unsupported ownership metadata");
+            for(const auto &f:exported)if(lower(f.first)=="origin.txt")j["origin_sha256"]=sha(f.second);
             j["resources"]=Json::array();for(const auto &f:exported)if(f.first.rfind("assets/",0)==0)j["resources"].push_back({{"path",f.first.substr(7)},{"sha256",sha(f.second)}});
             auto s=j.dump(2)+"\n";owner->second=Bytes(s.begin(),s.end());
         }

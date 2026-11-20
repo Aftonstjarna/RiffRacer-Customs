@@ -9,6 +9,7 @@
 #include "../NativeLinux/native_assets.hpp"
 #include <map>
 #include <numeric>
+#include <random>
 #ifdef _WIN32
 #include <process.h>
 #else
@@ -337,6 +338,7 @@ inline void verifyOwnedMod(const fs::path &dest) {
     require(!isOutputLink(dest/"livery-maker.json") && fs::is_regular_file(dest/"livery-maker.json"),"Refusing an unowned output folder");
     auto owner=loadJson(dest/"livery-maker.json");auto tool=owner.value("tool","");
     std::set<std::string> allowed{"livery-maker.json"},directories;
+    if(owner.contains("origin_sha256")){allowed.insert("origin.txt");require(!isOutputLink(dest/"origin.txt") && sha(read((dest/"origin.txt").u8string()))==owner.at("origin_sha256"),"Owned origin metadata changed or is missing");}
     if(tool=="reriff-livery-maker-v1") {
         allowed.insert("vfs.dat");allowed.insert("vfs.zip");
     } else {
@@ -395,10 +397,118 @@ inline Json conflicts(const fs::path &parent,const fs::path &own,const std::stri
     }
     return found;
 }
-inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination) {
+// Package identity survives edits; it must not depend on mutable asset hashes.
+inline std::string newPackageId() {
+    std::random_device random;Bytes entropy;
+    for(int i=0;i<4;i++)put32(entropy,random());
+    return "customs-"+sha(entropy).substr(0,32);
+}
+inline const std::set<std::string> &stockDonors() {
+    static const std::set<std::string> ids{"alf","bui","cor","rs1","vau","fab","hon","cad","rol","mer","mot","pha","che","f1r","pl1"};return ids;
+}
+inline bool authoredCarId(const std::string &id) {
+    return id.size()==3 && std::all_of(id.begin(),id.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='0'&&c<='9');}) && !(id[0]=='r'&&id[1]=='0'&&id[2]>='0'&&id[2]<='6');
+}
+// Infer only resources actually in the package, never every entry in a shared CFG.
+// Reading an existing package must not impose write-side validation: an older
+// package can use a runtime slot or non-authored spelling, and it can only be
+// migrated after the editor has opened it.
+inline std::set<std::string> discoveredCarIds(const std::map<std::string,Bytes> &files) {
+    std::set<std::string> ids;
+    for(const auto &f:files){auto name=lower(f.first);if(name.rfind("assets/",0)==0)name=name.substr(7);
+        for(const std::string prefix:{"graphics/vehicles/","graphics/be/hud/car/"})if(name.rfind(prefix,0)==0){
+            auto rest=name.substr(prefix.size());bool decal=rest.rfind("decals/",0)==0;if(decal)rest=rest.substr(7);
+            auto id=rest.substr(0,rest.find('/'));if(decal && id.size()>3 && id[3]=='_')id=id.substr(0,3);
+            if(id.size()==3)ids.insert(id);
+        }
+    }
+    return ids;
+}
+inline std::set<std::string> originCarIds(const std::map<std::string,Bytes> &files) {
+    auto ids=discoveredCarIds(files);
+    for(const auto &id:ids)require(authoredCarId(id),"Use an authored car ID, not a runtime car slot: "+id);
+    return ids;
+}
+// Keep existing comments, line endings and untouched declarations. Completing a
+// legacy file adds the stable identity/policy it previously left implicit.
+class Origin {
+    struct Entry {std::string section,key,value;size_t begin,end,valueBegin,valueEnd;};
+    Bytes raw_;
+    std::string generatedId_;
+    static std::string trim(std::string s){auto a=s.find_first_not_of(" \t\r");if(a==std::string::npos)return {};return s.substr(a,s.find_last_not_of(" \t\r")-a+1);}
+    std::vector<Entry> entries() const {
+        std::string text(raw_.begin(),raw_.end()),section="mod";std::vector<Entry> result;std::set<std::pair<std::string,std::string>> keys;
+        require(raw_.size()<=65536&&text.find('\0')==std::string::npos,"Invalid or oversized origin metadata");
+        for(size_t at=0;at<text.size();){auto end=text.find('\n',at);if(end==std::string::npos)end=text.size();auto line=text.substr(at,end-at),clean=trim(line);
+            if(!clean.empty()&&clean[0]!=';'&&clean[0]!='#'){
+                if(clean.front()=='['){require(clean.size()>2&&clean.back()==']',"Invalid origin section");section=clean.substr(1,clean.size()-2);}
+                else {auto equal=line.find('=');require(equal!=std::string::npos,"Invalid origin declaration");auto key=trim(line.substr(0,equal));auto value=trim(line.substr(equal+1));require(!key.empty()&&keys.insert({section,key}).second,"Duplicate origin declaration");
+                    auto vb=equal+1;while(vb<line.size()&&(line[vb]==' '||line[vb]=='\t'))++vb;auto ve=line.size();while(ve>vb&&(line[ve-1]==' '||line[ve-1]=='\t'||line[ve-1]=='\r'))--ve;
+                    if(key=="id"||key=="overwrite")for(const auto &prior:result)require(prior.key!=key,"Duplicate origin identity or overwrite policy");
+                    result.push_back({section,key,value,at,end,at+vb,at+ve});}
+            }
+            at=end==text.size()?end:end+1;
+        }
+        return result;
+    }
+    static bool matches(const Entry &e,const std::string &section,const std::string &key){return e.key==key&&(e.section==section||(section=="mod"&&(key=="id"||key=="overwrite")));}
+    bool has(const std::string &section,const std::string &key) const {for(const auto &e:entries())if(matches(e,section,key))return true;return false;}
+    std::string value(const std::string &section,const std::string &key) const {for(const auto &e:entries())if(matches(e,section,key))return e.value;return {};}
+    static bool safeIdentity(const std::string &id){return !id.empty()&&id.size()<=128&&id!="."&&id!=".."&&trim(id)==id&&std::all_of(id.begin(),id.end(),[](unsigned char c){return c>=32&&c!=127&&c!='|'&&c!='='&&c!='['&&c!=']'&&c!='/'&&c!='\\';});}
+    void set(const std::string &section,const std::string &key,const std::string &value) {
+        std::string text(raw_.begin(),raw_.end());for(const auto &e:entries())if(matches(e,section,key)){if(e.value==value)return;text.replace(e.valueBegin,e.valueEnd-e.valueBegin,value);raw_=Bytes(text.begin(),text.end());return;}
+        std::string nl=text.find("\r\n")!=std::string::npos?"\r\n":"\n";
+        // Reopening a section is accepted by the ReRiff INI reader, but keep a
+        // single section for simpler third-party consumers as well.
+        size_t insert=std::string::npos;bool inSection=false;
+        for(size_t at=0;at<text.size();){auto end=text.find('\n',at);if(end==std::string::npos)end=text.size();auto clean=trim(text.substr(at,end-at));
+            if(!clean.empty()&&clean.front()=='['){if(inSection){insert=at;break;}inSection=clean=="["+section+"]";}
+            at=end==text.size()?end:end+1;
+        }
+        if(inSection){if(insert==std::string::npos){if(!text.empty()&&text.back()!='\n')text+=nl;insert=text.size();}text.insert(insert,key+"="+value+nl);}
+        else {if(!text.empty()&&text.back()!='\n')text+=nl;if(!text.empty())text+=nl;text+="["+section+"]"+nl+key+"="+value+nl;}
+        require(text.size()<=65536,"Origin metadata exceeds size limit");raw_=Bytes(text.begin(),text.end());
+    }
+public:
+    explicit Origin(Bytes raw={},std::string generatedId=newPackageId()):raw_(std::move(raw)),generatedId_(std::move(generatedId)) {
+        (void)entries();auto policy=value("mod","overwrite");require(!has("mod","overwrite")||policy=="0"||policy=="1","Origin overwrite must be 0 or 1");
+        require(safeIdentity(packageId()),"Invalid origin package ID");
+        for(const auto &mapping:mappings())require(authoredCarId(mapping.first)&&stockDonors().count(mapping.second),"Origin mapping needs an authored car ID and stock donor");
+    }
+    std::string packageId() const {auto id=value("mod","id");return has("mod","id")?id:generatedId_;}
+    bool overwrite() const {return value("mod","overwrite")!="0";}
+    std::map<std::string,std::string> mappings() const {std::map<std::string,std::string> out;for(const auto &e:entries())if(e.section=="origins"&&e.key!="id"&&e.key!="overwrite")out[e.key]=e.value;return out;}
+    void setOverwrite(bool replaceDonor){set("mod","overwrite",replaceDonor?"1":"0");}
+    void setMapping(const std::string &authoredId,const std::string &stockDonor){require(authoredCarId(authoredId)&&stockDonors().count(stockDonor),"Origin mapping needs an authored car ID and stock donor");set("origins",authoredId,stockDonor);}
+    void complete(const std::map<std::string,Bytes> &files,bool strict=true) {
+        if(!has("mod","id"))set("mod","id",generatedId_);
+        if(!has("mod","overwrite"))setOverwrite(true);
+        auto declared=mappings();for(const auto &id:discoveredCarIds(files))if(!declared.count(id)){
+            // Editing a legacy package may leave unknown donors unresolved. Only
+            // known native IDs have an unambiguous mapping; export remains strict.
+            if(!authoredCarId(id)){require(!strict,"Car "+id+" uses a runtime slot or non-authored ID; rename it to three lowercase letters or digits before exporting");continue;}
+            if(stockDonors().count(id))setMapping(id,id);
+            else require(!strict,"Custom car "+id+" needs an explicit stock donor mapping in origin.txt");
+        }
+    }
+    const Bytes &bytes() const {return raw_;}
+};
+inline Bytes originText(const std::map<std::string,Bytes> &files,const std::string &packageId=newPackageId()) {
+    // Start with the conventional section order for new packages.
+    auto text="[mod]\nid="+packageId+"\noverwrite=1\n\n[origins]\n";Origin origin(Bytes(text.begin(),text.end()),packageId);origin.complete(files);return origin.bytes();
+}
+inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Bytes *explicitOrigins=nullptr) {
     auto dest=safePath(fs::absolute(destination));
     require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
-    if(fs::exists(dest))verifyOwnedMod(dest);
+    Bytes origins;
+    if(fs::exists(dest)) {
+        verifyOwnedMod(dest);
+        // Keep all declared policy, identity, mappings and comments byte-for-byte.
+        if(fs::is_regular_file(dest/"origin.txt"))origins=read((dest/"origin.txt").u8string());
+    }
+    if(explicitOrigins)origins=*explicitOrigins;
+    if(origins.empty()&&!explicitOrigins&&!fs::exists(dest/"origin.txt"))origins=originText(files);
+    Origin declaration(origins);declaration.complete(files);origins=declaration.bytes();
     require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
     for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
     metadata["tool"]="reriff-livery-maker-v2";metadata["format"]="loose-v1";
@@ -413,12 +523,14 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     bool moved=false;
     try {
         for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
+        write(stage/"origin.txt",origins);metadata["origin_sha256"]=sha(origins);
         save(stage/"livery-maker.json",metadata);verifyOwnedMod(stage);
         if(fs::exists(dest)) {fs::rename(dest,backup);moved=true;}
         fs::rename(stage,dest);if(moved)fs::remove_all(backup);
     } catch(...) { if(moved && !fs::exists(dest))fs::rename(backup,dest);fs::remove_all(stage);throw; }
     return metadata;
 }
+inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Origin &origin) {auto completed=origin;completed.complete(files);return publishMod(files,std::move(metadata),destination,&completed.bytes());}
 inline Bytes editedBatch(const Target &t,const Image *image) {
     Bytes batch=t.batch;
     if(image){auto dds=encodeDDS(t.texture,*image);size_t offset=u32(batch,12)+u32(batch,32);require(dds.size()==u32(batch,36),"DDS size changed");std::copy(dds.begin(),dds.end(),batch.begin()+offset);}

@@ -1,10 +1,12 @@
 #pragma once
 #include "core.hpp"
+#include "config_author.hpp"
 namespace livery {
-// Change only existing scalar float payloads. Native names, hashes, record
-// order, metadata, prices, unlocks and every unrelated byte remain original.
+// Patch appearance payloads in place; rebuild configuration only for explicit
+// price edits. Preserve unrelated native fields and Lua initialization logic.
 class PaintConfig {
     Bytes original_, current_, lua_;
+    std::map<std::pair<std::string,size_t>,int> prices_;
     std::vector<PaintSelection> selections_;
     uint32_t nodes_,strings_;
     size_t record(uint32_t index) const {require(index<nodes_,"Invalid paint record");return 20+size_t(index)*32;}
@@ -121,10 +123,17 @@ public:
         put32(out,constantCount);out.insert(out.end(),lua_.begin()+constantsAt+4,lua_.begin()+end);
         out.insert(out.end(),extraConstants.begin(),extraConstants.end());out.insert(out.end(),lua_.begin()+end,lua_.end());return out;
     }
+    int price(const PaintSelection &p)const{auto found=prices_.find({p.car,p.packIndex});if(found!=prices_.end())return found->second;auto v=get(p,"packPrice",1);return v.empty()?0:int(v[0]);}
+    void setPrice(const PaintSelection&p,int value){require(value>=0&&value<=10000000,"Paint price must be 0–10,000,000");prices_[{p.car,p.packIndex}]=value;}
     std::map<std::string,Bytes> files() const {
-        return {{resource,current_},{"scripts/config/paint_pc.luac",luaBytes()}};
+        auto cfg=current_,lua=luaBytes();if(!prices_.empty()){
+            auto tree=Json::parse(Config(cfg).json());auto&paints=configNamed(tree,"Paints")["value"];std::vector<ConfigAssignment> patches;
+            for(auto&e:prices_){auto&packs=configNamed(paints,e.first.first)["value"];configSet(packs.at(e.first.second)["value"],"packPrice",e.second);patches.push_back({{"Paints",e.first.first,e.first.second+1,"packPrice"},e.second});}
+            cfg=configEncode(tree);lua=configLuaPatch(lua,patches);
+        }
+        return {{resource,cfg},{"scripts/config/paint_pc.luac",lua}};
     }
-    bool changed() const {return current_!=original_;}
+    bool changed() const {return current_!=original_||!prices_.empty();}
     const Bytes &bytes() const {return current_;}
     const Bytes &original() const {return original_;}
 };

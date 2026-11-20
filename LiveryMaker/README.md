@@ -393,9 +393,9 @@ wheel geometry is retained.
 **Preview conversion** validates and displays the resulting native geometry.
 Changing settings invalidates that preview. **Create mod and edit** exports to a
 new folder and opens it in the existing paint/livery/HUD/booster editor. Source
-files and the game installation are not modified. The current operation replaces
-the selected donor's existing garage slot; it does not create a new slot. Export
-subsequent editor adjustments to another folder and install only that final copy.
+files and the game installation are not modified. Choose **Replace donor car**
+or **Add as a new car**; the latter requires ReRiff automatic car-slot support.
+Export subsequent editor adjustments to another folder and install only that final copy.
 
 This first converter deliberately uses original donor materials and textures.
 Source PBR properties, textures and vertex colors are not imported. UV0 is retained,
@@ -460,3 +460,67 @@ this preview immediately. Turning placement controls off removes the guides but
 keeps the HUD artwork visible. Uncheck Show car HUD for a clean car view.
 The HUD is depth-tested against the car to expose clipping. Track tint, gameplay
 visibility and animated glow are not simulated; confirm the final result in game.
+
+### Donor metadata and export mode
+
+Choose **Replace donor car** or **Add as a new car** in the editor or model
+importer. The choice applies to every authored car in the package. Existing
+replacement projects default to Replace; imported choices are retained.
+
+Exports include `origin.txt` beside `assets/`:
+
+```ini
+[mod]
+id=customs-<stable unique package identity>
+overwrite=0
+
+[origins]
+alf=alf
+```
+
+Each mapping is **authored car ID = stock donor ID**. `alf` is Pulse; model
+conversion uses the chosen donor's actual ID. Imported mappings are retained.
+**Replace donor car** writes `overwrite=1`; **Add as a new car** writes
+`overwrite=0`. The package ID is generated once and survives edits, repeated
+exports, reimports and folder renames. Separate new projects receive different IDs.
+
+Complete imported metadata stays byte-for-byte unchanged until its policy or
+mappings change. Legacy metadata receives missing identity and replacement policy.
+Ownership receipts are refreshed with the exported metadata hash; updating an
+owned output first verifies its existing hashes.
+
+Older mod folders and ZIPs without `origin.txt` can be imported for migration.
+Known stock resource IDs receive their stock donor automatically. For unknown
+custom IDs, use **Legacy car migration** to choose each stock donor by its
+in-game name. The editor opens before these mappings are complete; export is
+enabled once every donor is chosen. Choose either export mode and export a new
+copy to write the stable package identity and mappings. The imported files remain
+untouched. Donors are never guessed from a custom car's geometry or name.
+
+Customs exports loose assets using authored IDs. It does not assign numeric slots
+or bake runtime IDs into assets. ReRiff allocates slots, supplies missing donor
+assets and migrates saves. Install only one copy of a package at a time; renamed
+or edited exports remain the same package. New-car mode requires a ReRiff client
+with automatic car-slot support and an available custom slot.
+
+`make -C LiveryMaker test` includes metadata policy and ownership regressions.
+The mod-editor and GUI smoke tests also cover reimported export choices.
+
+## Unlock and prices
+
+Open **Unlock and prices**, choose the car unlock type, edit the relevant fields,
+and click **Apply unlock and prices**. Car price applies only to **Shop purchase**.
+**Artist** matches the song's artist text; **Artist – Title** requires both fields.
+Matches ignore case and accept substrings, as the original Police/Monaco checks do.
+Available-from-start and play-a-track choices use the native unlock settings.
+
+The selected paint and its PNG livery share the native pack price. Zero is free.
+Appearance resets/default-paint changes retain prices. Existing saved ownership
+is not revoked by changing rules or prices. Export a copy and restart the game.
+
+Custom music rules require the matching ReRiff Customs-unlock client extension;
+the original game hard-codes Police and Monaco and ignores arbitrary artist/title
+configuration. Exports include paired native CFG/Lua files and a hash manifest.
+The extension refuses music rules if another mod overrides only part of that pair.
+Shop/paint prices use the existing native game implementation. A car with a single
+paint receives that paint when the car unlocks, regardless of its pack price.

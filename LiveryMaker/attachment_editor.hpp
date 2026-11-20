@@ -1,5 +1,6 @@
 #pragma once
 #include "mod_appearance.hpp"
+#include "economy.hpp"
 #include "mod_names.hpp"
 #include "surface_snap.hpp"
 #include "multiplier_style.hpp"
@@ -12,14 +13,89 @@ class AttachmentEditor {
     GtkWidget *dialog_{},*car_{},*node_{},*paint_{},*canvas_{},*status_{};
     std::array<GtkWidget*,9> fields_{};bool updating_=false,unsaved_=false;
     std::string currentCar_;size_t selected_=0,paintIndex_=0;
+    GtkWidget *exportMode_{},*exportButton_{},*migrationInfo_{};
+    std::map<std::string,GtkWidget*> migrationDonors_;
+    bool legacyOrigin_=false;
+    void refreshMigration(){
+        auto missing=mod_.unresolvedOrigins();auto incompatible=mod_.incompatibleOrigins();
+        if(exportButton_)gtk_widget_set_sensitive(exportButton_,missing.empty()&&incompatible.empty());
+        if(!migrationInfo_)return;
+        std::string text;
+        if(!incompatible.empty())text="Car IDs "+joinIds(incompatible)+" use a runtime slot or a non-authored spelling. Rename those car folders to three lowercase letters or digits, then import the renamed copy to migrate them.";
+        else if(!missing.empty())text="Choose a stock donor for each legacy car before exporting. Its resource ID alone does not identify the donor.";
+        else text="Donor metadata is ready. Export a copy to save the migration; the imported mod stays unchanged.";
+        gtk_label_set_text(GTK_LABEL(migrationInfo_),text.c_str());
+    }
+    static std::string joinIds(const std::vector<std::string> &ids){std::string text;for(size_t i=0;i<ids.size();i++)text+=(i?", ":"")+ids[i];return text;}
+    void buildMigration(GtkWidget *controls){
+        auto missing=mod_.unresolvedOrigins();auto incompatible=mod_.incompatibleOrigins();
+        if(!legacyOrigin_&&missing.empty()&&incompatible.empty())return;
+        auto *expander=gtk_expander_new("Legacy car migration");gtk_expander_set_expanded(GTK_EXPANDER(expander),true);gtk_box_pack_start(GTK_BOX(controls),expander,false,false,0);
+        auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_add(GTK_CONTAINER(expander),box);
+        migrationInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(migrationInfo_),true);gtk_label_set_max_width_chars(GTK_LABEL(migrationInfo_),32);gtk_box_pack_start(GTK_BOX(box),migrationInfo_,false,false,0);
+        auto stockLabels=displayNames(stock_);
+        for(const auto &id:missing){
+            auto title=localized(labels_,"car_"+id)+" ("+id+") — donor";auto *label=gtk_label_new(title.c_str());gtk_label_set_line_wrap(GTK_LABEL(label),true);gtk_label_set_max_width_chars(GTK_LABEL(label),32);gtk_box_pack_start(GTK_BOX(box),label,false,false,0);
+            auto *combo=gtk_combo_box_text_new();gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo),"","Choose stock donor…");for(const auto &donor:stockDonors()){auto name=localized(stockLabels,"car_"+donor);gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo),donor.c_str(),name.c_str());}
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo),0);gtk_box_pack_start(GTK_BOX(box),combo,false,false,0);migrationDonors_[id]=combo;
+            g_signal_connect(combo,"changed",G_CALLBACK(+[](GtkComboBox *changed,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{const char *selected=gtk_combo_box_get_active_id(changed);auto origin=a.mod_.originMetadata();if(!selected||!*selected){auto mappings=origin.mappings();for(const auto &item:a.migrationDonors_)if(item.second==GTK_WIDGET(changed)&&mappings.count(item.first))gtk_combo_box_set_active_id(changed,mappings.at(item.first).c_str());return;}for(const auto &item:a.migrationDonors_)if(item.second==GTK_WIDGET(changed))origin.setMapping(item.first,selected);a.mod_.setOriginMetadata(origin);a.unsaved_=true;a.refreshMigration();});}),this);
+        }
+        refreshMigration();
+    }
+    void markEdited(){
+        if(!currentCar_.empty()){
+            auto origin=mod_.originMetadata();
+            if(!origin.mappings().count(currentCar_)&&stockDonors().count(currentCar_))origin.setMapping(currentCar_,currentCar_);
+            mod_.setOriginMetadata(origin);
+        }
+        unsaved_=true;
+    }
+    void buildExportMode(GtkWidget *controls){
+        exportMode_=gtk_combo_box_text_new();gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(exportMode_),"replace","Replace donor car");gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(exportMode_),"add","Add as a new car");
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),mod_.originMetadata().overwrite()?"replace":"add");gtk_box_pack_end(GTK_BOX(controls),exportMode_,false,false,0);gtk_widget_set_tooltip_text(exportMode_,"Export mode for the whole package. Adding cars requires ReRiff automatic car-slot support. Re-exported copies retain their identity.");
+        g_signal_connect(exportMode_,"changed",G_CALLBACK(+[](GtkComboBox *combo,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{auto origin=a.mod_.originMetadata();origin.setOverwrite(std::string(gtk_combo_box_get_active_id(combo))=="replace");a.mod_.setOriginMetadata(origin);a.unsaved_=true;});}),this);
+    }
+
     std::unique_ptr<Model> body_;PaintConfig *colors_{};std::unique_ptr<ModAppearance> appearance_;std::unique_ptr<Image> decalPreview_;Model nodes_;
     std::map<std::string,std::array<double,9>> values_;
     double yaw_=3.14,pitch_=.45,zoom_=1.;
     std::vector<std::pair<std::string,GtkWidget*>> paintColors_;bool loadingPaint_=false;GtkWidget *liveryInfo_{};
+    std::unique_ptr<UnlockConfig> unlocks_;
+    GtkWidget *unlockMode_{},*carPrice_{},*packPrice_{},*unlockArtist_{},*unlockTitle_{},*unlockInfo_{},*unlockApply_{};
+    void unlockSensitivity(){
+        auto id=gtk_combo_box_get_active_id(GTK_COMBO_BOX(unlockMode_));std::string mode=id?id:"original";bool supported=unlocks_->supports(currentCar_);
+        gtk_widget_set_sensitive(carPrice_,supported&&mode=="shop");gtk_widget_set_sensitive(unlockArtist_,supported&&(mode=="artist"||mode=="artist-title"));gtk_widget_set_sensitive(unlockTitle_,supported&&mode=="artist-title");
+        gtk_label_set_text(GTK_LABEL(unlockInfo_),mode=="artist"||mode=="artist-title"?"Music unlocks match artist/title text, ignoring case. Custom rules require the updated ReRiff client. Existing ownership is unchanged.":"Prices apply to future purchases. 0 makes a paint free. Paint and livery share one price; ownership already saved is unchanged.");
+    }
+    void refreshUnlock(){
+        if(!unlockMode_||currentCar_.empty())return;
+        bool supported=unlocks_->supports(currentCar_);auto v=supported?unlocks_->get(currentCar_):Json::object();
+        gtk_widget_set_sensitive(unlockMode_,supported);gtk_combo_box_set_active_id(GTK_COMBO_BOX(unlockMode_),UnlockConfig::mode(v).c_str());gtk_spin_button_set_value(GTK_SPIN_BUTTON(carPrice_),v.value("purchaseUnlock",1000));
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(packPrice_),colors_->price(paintSelection()));gtk_entry_set_text(GTK_ENTRY(unlockArtist_),v.value("artistUnlock",std::string()).c_str());gtk_entry_set_text(GTK_ENTRY(unlockTitle_),v.value("songUnlock",std::string()).c_str());unlockSensitivity();
+    }
+    void applyUnlock(){
+        auto id=gtk_combo_box_get_active_id(GTK_COMBO_BOX(unlockMode_));std::string mode=id?id:"original";
+        if(unlocks_->supports(currentCar_)&&mode!="original")unlocks_->set(currentCar_,mode,gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(carPrice_)),gtk_entry_get_text(GTK_ENTRY(unlockArtist_)),gtk_entry_get_text(GTK_ENTRY(unlockTitle_)));
+        colors_->setPrice(paintSelection(),gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(packPrice_)));markEdited();refreshUnlock();message("Unlock and prices updated. Export a copy to save; restart the game after installing it.");
+    }
+    void buildUnlock(GtkWidget *controls){
+        auto*expand=gtk_expander_new("Unlock and prices");gtk_box_pack_start(GTK_BOX(controls),expand,false,false,0);auto*box=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_add(GTK_CONTAINER(expand),box);
+        auto label=[&](const char*s){auto*w=gtk_label_new(s);gtk_label_set_xalign(GTK_LABEL(w),0);gtk_box_pack_start(GTK_BOX(box),w,false,false,0);};
+        label("Car unlock");unlockMode_=gtk_combo_box_text_new();for(auto choice:std::vector<std::pair<const char*,const char*>>{{"original","Keep existing unlock"},{"available","Available from start"},{"play","Play a track"},{"shop","Shop purchase"},{"artist","Artist"},{"artist-title","Artist – Title"}})gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(unlockMode_),choice.first,choice.second);gtk_box_pack_start(GTK_BOX(box),unlockMode_,false,false,0);
+        label("Car price (shop purchases only)");carPrice_=gtk_spin_button_new_with_range(1,10000000,100);gtk_box_pack_start(GTK_BOX(box),carPrice_,false,false,0);
+        label("Artist contains");unlockArtist_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(unlockArtist_),200);gtk_box_pack_start(GTK_BOX(box),unlockArtist_,false,false,0);
+        label("Title contains");unlockTitle_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(unlockTitle_),200);gtk_box_pack_start(GTK_BOX(box),unlockTitle_,false,false,0);
+        label("Selected paint / livery price");packPrice_=gtk_spin_button_new_with_range(0,10000000,100);gtk_box_pack_start(GTK_BOX(box),packPrice_,false,false,0);
+        unlockInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(unlockInfo_),true);gtk_label_set_max_width_chars(GTK_LABEL(unlockInfo_),32);gtk_box_pack_start(GTK_BOX(box),unlockInfo_,false,false,0);
+        unlockApply_=gtk_button_new_with_label("Apply unlock and prices");gtk_box_pack_start(GTK_BOX(box),unlockApply_,false,false,0);g_signal_connect(unlockApply_,"clicked",G_CALLBACK(+[](GtkButton*,gpointer data){auto&a=*static_cast<AttachmentEditor*>(data);a.guard([&]{a.applyUnlock();});}),this);
+        auto*reset=gtk_button_new_with_label("Restore imported unlock");gtk_box_pack_start(GTK_BOX(box),reset,false,false,0);g_signal_connect(reset,"clicked",G_CALLBACK(+[](GtkButton*,gpointer data){auto&a=*static_cast<AttachmentEditor*>(data);a.guard([&]{if(a.unlocks_->supports(a.currentCar_)){a.unlocks_->reset(a.currentCar_);a.markEdited();a.refreshUnlock();}});}),this);
+        g_signal_connect(unlockMode_,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer data){static_cast<AttachmentEditor*>(data)->unlockSensitivity();}),this);
+    }
+
     PaintSelection paintSelection()const{return appearance_->selection(currentCar_,paintIndex_);}
     void refreshPaint(){
         if(currentCar_.empty())return;
-        auto p=paintSelection();loadNames();loadingPaint_=true;
+        auto p=paintSelection();loadNames();refreshUnlock();loadingPaint_=true;
         for(auto &field:paintColors_){auto rgb=colors_->get(p,field.first,3);gtk_widget_set_sensitive(field.second,rgb.size()==3);if(rgb.size()==3){GdkRGBA color{rgb[0]/255.,rgb[1]/255.,rgb[2]/255.,1};gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(field.second),&color);}}
         loadingPaint_=false;auto decal=appearance_->decal(p);decalPreview_.reset();
         if(decal)decalPreview_=std::make_unique<Image>(decodeDDS(decal->texture));
@@ -35,7 +111,7 @@ class AttachmentEditor {
     void artwork(bool save){
         auto p=paintSelection();auto source=appearance_->imageTemplate(p);auto path=chooseArtwork(save);if(path.empty())return;
         if(save){auto image=decodeDDS(source.texture);if(!appearance_->decal(p))std::fill(image.pixels.begin(),image.pixels.end(),0);savePNG(fs::u8path(path),image);}
-        else {appearance_->importPNG(p,loadPNG(fs::u8path(path),source.texture.width,source.texture.height));unsaved_=true;refreshPaint();message("Livery updated for this paint. Export a copy to save.");}
+        else {appearance_->importPNG(p,loadPNG(fs::u8path(path),source.texture.width,source.texture.height));markEdited();refreshPaint();message("Livery updated for this paint. Export a copy to save.");}
     }
     GtkWidget *previewHint_{},*carName_{},*paintName_{},*adjustButton_{},*attachmentControls_{};bool placement_=false;
     std::map<std::string,std::string> nameEdits_;
@@ -46,14 +122,14 @@ class AttachmentEditor {
         (void)renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},proposed);
         nameEdits_=std::move(proposed);for(const auto &entry:nameEdits_)labels_[entry.first]=entry.second;
         for(auto *combo:{car_,paint_}){GtkTreeIter iter;auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(combo));if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(combo),&iter))gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,combo==car_?localized(labels_,"car_"+currentCar_).c_str():localized(labels_,paintToken()).c_str(),-1);}
-        unsaved_=true;message("In-game names updated. Export a copy to save. Shared name tokens change together.");
+        markEdited();message("In-game names updated. Export a copy to save. Shared name tokens change together.");
     }
-    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
+    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();for(auto &entry:unlocks_->files())files[entry.first]=entry.second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
     GtkWidget *multiplierStyle_{},*multiplierSample_{},*showHud_{};std::unique_ptr<CarHudPreview> hudPreview_;bool showCarHud_=true;bool loadingMultiplier_=false;std::map<std::string,Bytes> hudEdits_;
     void refreshMultiplier(){
         loadingMultiplier_=true;hudPreview_.reset();try{auto found=hudEdits_.find(currentCar_);auto bytes=found==hudEdits_.end()?mod_.assetBytes(hudTexturePath(currentCar_),stock_):found->second;hudPreview_=std::make_unique<CarHudPreview>(carHudPreview(bytes));int style=identifyMultiplierStyle(stock_,bytes);gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),style+1);gtk_widget_set_sensitive(multiplierStyle_,true);auto textures=decodeTextures(bytes);auto texture=std::find_if(textures.begin(),textures.end(),[](const Texture&t){return t.name=="multiplier";});require(texture!=textures.end()&&texture->width==384&&texture->height==288,"Unknown multiplier atlas dimensions");auto image=decodeDDS(*texture);auto*pix=gdk_pixbuf_new(GDK_COLORSPACE_RGB,true,8,96,96);for(int y=0;y<96;y++)std::copy_n(image.pixels.data()+size_t(y)*image.width*4,96*4,gdk_pixbuf_get_pixels(pix)+y*gdk_pixbuf_get_rowstride(pix));gtk_image_set_from_pixbuf(GTK_IMAGE(multiplierSample_),pix);g_object_unref(pix);}catch(const std::exception&){gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),0);gtk_widget_set_sensitive(multiplierStyle_,false);gtk_image_clear(GTK_IMAGE(multiplierSample_));}loadingMultiplier_=false;if(canvas_)gtk_widget_queue_draw(canvas_);
     }
-    void changeMultiplier(){if(loadingMultiplier_||currentCar_.empty())return;int choice=gtk_combo_box_get_active(GTK_COMBO_BOX(multiplierStyle_))-1;auto original=mod_.assetBytes(hudTexturePath(currentCar_),stock_);if(choice<0)hudEdits_.erase(currentCar_);else{auto edited=multiplierStyleBatch(original,stockHudStyle(stock_,choice));if(edited==original)hudEdits_.erase(currentCar_);else hudEdits_[currentCar_]=std::move(edited);}unsaved_=true;refreshMultiplier();message("Multiplier brackets updated for this car and all its paints. Export a copy to save.");}
+    void changeMultiplier(){if(loadingMultiplier_||currentCar_.empty())return;int choice=gtk_combo_box_get_active(GTK_COMBO_BOX(multiplierStyle_))-1;auto original=mod_.assetBytes(hudTexturePath(currentCar_),stock_);if(choice<0)hudEdits_.erase(currentCar_);else{auto edited=multiplierStyleBatch(original,stockHudStyle(stock_,choice));if(edited==original)hudEdits_.erase(currentCar_);else hudEdits_[currentCar_]=std::move(edited);}markEdited();refreshMultiplier();message("Multiplier brackets updated for this car and all its paints. Export a copy to save.");}
     GtkWidget *viewMode_{},*addDecalButton_{};int view_=0;
     void uv(cairo_t *cr,double width,double height){
         if(!body_)return;
@@ -146,12 +222,12 @@ class AttachmentEditor {
         try{
             gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),entry.car.c_str());
             gtk_combo_box_set_active_id(GTK_COMBO_BOX(node_),std::to_string(entry.node).c_str());
-            restoreNodes(entry.group);unsaved_=true;replaying_=false;message("Undid attachment edit. Export a copy to save.");
+            restoreNodes(entry.group);markEdited();replaying_=false;message("Undid attachment edit. Export a copy to save.");
         }catch(...){replaying_=false;undo_.push_back(entry);throw;}
     }
     void snapToCar(){
         finish(true);require(bool(body_),"No car model loaded");auto &writer=*mod_.cars.at(currentCar_);auto before=nodeValues(selected_);auto result=snap::align(*body_,writer.originalModel().nodes.at(selected_).matrix,before,writer.originalModel().nodes.at(selected_).name.rfind("nos",0)!=0);
-        remember(before);auto state=snapshot();state[selected_]=result;restoreNodes(state);unsaved_=true;message("Selected element snapped to exterior with clearance. Ctrl+Z to undo; verify curved surfaces in-game.");
+        remember(before);auto state=snapshot();state[selected_]=result;restoreNodes(state);markEdited();message("Selected element snapped to exterior with clearance. Ctrl+Z to undo; verify curved surfaces in-game.");
     }
     void applyValues(const std::array<double,9> &values){
         updating_=true;for(int i=0;i<9;i++)gtk_spin_button_set_value(GTK_SPIN_BUTTON(fields_[i]),values[i]);updating_=false;edit();
@@ -246,7 +322,7 @@ class AttachmentEditor {
         auto previous=nodeValues(selected_);auto &writer=*mod_.cars.at(currentCar_);
         for(auto node:linkedNodes()){auto next=nodeValues(node);for(int i=0;i<3;i++)next[i]+=value[i]-previous[i];writer.set(node,adjustedMatrix(writer.originalModel().nodes.at(node).matrix,next));values_[currentCar_+"/"+std::to_string(node)]=next;}
         writer.set(selected_,adjustedMatrix(writer.originalModel().nodes.at(selected_).matrix,value));
-        values_[key()]=value;unsaved_=true;refreshNodes();message("Unsaved adjustments. Guides show through the car; verify clipping in-game.");
+        values_[key()]=value;markEdited();refreshNodes();message("Unsaved adjustments. Guides show through the car; verify clipping in-game.");
     }
     void selectCar(){
         finish(true);
@@ -264,14 +340,21 @@ class AttachmentEditor {
         gtk_combo_box_set_active(GTK_COMBO_BOX(node_),0);refreshNodes();refreshMultiplier();
     }
     void exportCopy(){
+        auto incompatible=mod_.incompatibleOrigins();
+        require(incompatible.empty(),"Rename car IDs "+joinIds(incompatible)+" to three lowercase letters or digits before exporting; runtime slots and non-authored IDs cannot be declared in origin.txt");
+        require(mod_.unresolvedOrigins().empty(),"Choose the missing stock donors in Legacy car migration before exporting");
         auto *d=gtk_file_chooser_dialog_new("Export adjusted mod to a NEW folder",GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_SAVE,"Cancel",GTK_RESPONSE_CANCEL,"Export",GTK_RESPONSE_ACCEPT,nullptr);
         gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),"customs-adjusted-mod");
         std::string path;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *p=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));path=p;g_free(p);}gtk_widget_destroy(d);if(path.empty())return;
-        mod_.exportCopy(fs::u8path(path),extraFiles());unsaved_=false;message("Exported "+path+". Disable the original mod before installing this copy, then restart the game.");
+        auto files=extraFiles();
+        if(files.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first).rfind("assets/",0)==0;})){
+            markEdited();files["assets/graphics/vehicles/"+currentCar_+"/nodes.bdae"]=mod_.cars.at(currentCar_)->bytes();
+        }
+        mod_.exportCopy(fs::u8path(path),files);unsaved_=false;message("Exported "+path+". Disable the original mod before installing this copy, then restart the game.");
     }
 public:
     bool restartRequested=false;int requestedAction=-1;std::string requestedPath;int windowWidth=1100,windowHeight=760;bool maximized=false;
-    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();}
+    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);}
     void build(GtkWindow *parent){
         dialog_=gtk_dialog_new_with_buttons("RiffRacer Customs",parent,GTK_DIALOG_MODAL,"Close",GTK_RESPONSE_CLOSE,nullptr);gtk_window_set_default_size(GTK_WINDOW(dialog_),windowWidth,windowHeight);if(maximized)gtk_window_maximize(GTK_WINDOW(dialog_));
         auto *content=gtk_dialog_get_content_area(GTK_DIALOG(dialog_));gtk_container_set_border_width(GTK_CONTAINER(content),12);
@@ -284,22 +367,24 @@ public:
         gtk_box_pack_start(GTK_BOX(top),gtk_label_new("Car"),false,false,0);gtk_box_pack_start(GTK_BOX(top),car_,false,false,0);
         gtk_box_pack_start(GTK_BOX(top),gtk_label_new("Paint"),false,false,0);gtk_box_pack_start(GTK_BOX(top),paint_,false,false,0);
         adjustButton_=gtk_toggle_button_new_with_label("Adjust HUD / boosters");gtk_box_pack_start(GTK_BOX(top),adjustButton_,false,false,0);
-        auto *exportButton=gtk_button_new_with_label("Export mod");gtk_box_pack_end(GTK_BOX(top),exportButton,false,false,0);
+        auto *exportButton=gtk_button_new_with_label("Export mod");exportButton_=exportButton;gtk_box_pack_end(GTK_BOX(top),exportButton,false,false,0);buildExportMode(top);
         auto *paned=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);gtk_box_pack_start(GTK_BOX(content),paned,true,true,5);
         auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_widget_set_size_request(scroll,285,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
         auto *controls=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(controls),8);gtk_container_add(GTK_CONTAINER(scroll),controls);
+        buildMigration(controls);
         gtk_box_pack_start(GTK_BOX(controls),gtk_label_new("In-game car name"),false,false,0);carName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(carName_),80);gtk_box_pack_start(GTK_BOX(controls),carName_,false,false,0);
         gtk_box_pack_start(GTK_BOX(controls),gtk_label_new("In-game paint name"),false,false,0);paintName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(paintName_),80);gtk_box_pack_start(GTK_BOX(controls),paintName_,false,false,0);
         auto *applyNamesButton=gtk_button_new_with_label("Apply names");gtk_box_pack_start(GTK_BOX(controls),applyNamesButton,false,false,0);g_signal_connect(applyNamesButton,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.applyNames();});}),this);
+        buildUnlock(controls);
         auto *paintExpander=gtk_expander_new("Paint and livery");gtk_expander_set_expanded(GTK_EXPANDER(paintExpander),true);gtk_box_pack_start(GTK_BOX(controls),paintExpander,false,false,0);
         auto *paintBox=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_add(GTK_CONTAINER(paintExpander),paintBox);
         const char *paintKeys[]={"col0","col1","col2","specCol","alloysCol0","alloysCol1"};const char *paintLabels[]={"Body color 1","Body color 2","Body color 3","Highlight","Wheel color 1","Wheel color 2"};
         for(int i=0;i<6;i++){auto *row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,6);gtk_box_pack_start(GTK_BOX(paintBox),row,false,false,0);gtk_box_pack_start(GTK_BOX(row),gtk_label_new(paintLabels[i]),true,true,0);auto *button=gtk_color_button_new();gtk_box_pack_end(GTK_BOX(row),button,false,false,0);paintColors_.push_back({paintKeys[i],button});
-            g_signal_connect(button,"color-set",G_CALLBACK(+[](GtkColorButton *b,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);if(a.loadingPaint_)return;a.guard([&]{for(auto &field:a.paintColors_)if(field.second==GTK_WIDGET(b)){GdkRGBA rgb;gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(b),&rgb);a.colors_->set(a.paintSelection(),field.first,{float(rgb.red*255),float(rgb.green*255),float(rgb.blue*255)});a.unsaved_=true;a.refreshPaint();}});}),this);
+            g_signal_connect(button,"color-set",G_CALLBACK(+[](GtkColorButton *b,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);if(a.loadingPaint_)return;a.guard([&]{for(auto &field:a.paintColors_)if(field.second==GTK_WIDGET(b)){GdkRGBA rgb;gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(b),&rgb);a.colors_->set(a.paintSelection(),field.first,{float(rgb.red*255),float(rgb.green*255),float(rgb.blue*255)});a.markEdited();a.refreshPaint();}});}),this);
         }
         liveryInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(liveryInfo_),true);gtk_box_pack_start(GTK_BOX(paintBox),liveryInfo_,false,false,0);
         const char *actions[]={"Import PNG livery","Save PNG / blank template","Remove livery","Reset paint and livery","Use this paint as default","Add PNG decal","Make test livery","Save UV template"};
-        for(int i=0;i<8;i++){auto *b=gtk_button_new_with_label(actions[i]);gtk_box_pack_start(GTK_BOX(paintBox),b,false,false,0);if(i==5)addDecalButton_=b;g_object_set_data(G_OBJECT(b),"paint-action",GINT_TO_POINTER(i));g_signal_connect(b,"clicked",G_CALLBACK(+[](GtkButton *button,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{int action=GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"paint-action"));if(action<2)a.artwork(action==1);else if(action==7)a.saveUV();else if(action==5||action==6){auto p=a.paintSelection();auto source=a.appearance_->imageTemplate(p);auto image=action==6?diagnostic(source.texture):decodeDDS(source.texture);if(action==5){require(!a.appearance_->decal(p),"This paint already has a decal");std::fill(image.pixels.begin(),image.pixels.end(),0);}a.appearance_->importPNG(p,image);a.unsaved_=true;a.refreshPaint();}else {if(action==2)a.appearance_->remove(a.paintSelection());else if(action==3)a.appearance_->reset(a.paintSelection());else a.appearance_->makeDefault(a.paintSelection());a.unsaved_=true;a.refreshPaint();if(action==4)a.message("Default appearance updated in the first paint slot. Existing saved paint selections are unchanged.");}});}),this);}
+        for(int i=0;i<8;i++){auto *b=gtk_button_new_with_label(actions[i]);gtk_box_pack_start(GTK_BOX(paintBox),b,false,false,0);if(i==5)addDecalButton_=b;g_object_set_data(G_OBJECT(b),"paint-action",GINT_TO_POINTER(i));g_signal_connect(b,"clicked",G_CALLBACK(+[](GtkButton *button,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{int action=GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"paint-action"));if(action<2)a.artwork(action==1);else if(action==7)a.saveUV();else if(action==5||action==6){auto p=a.paintSelection();auto source=a.appearance_->imageTemplate(p);auto image=action==6?diagnostic(source.texture):decodeDDS(source.texture);if(action==5){require(!a.appearance_->decal(p),"This paint already has a decal");std::fill(image.pixels.begin(),image.pixels.end(),0);}a.appearance_->importPNG(p,image);a.markEdited();a.refreshPaint();}else {if(action==2)a.appearance_->remove(a.paintSelection());else if(action==3)a.appearance_->reset(a.paintSelection());else a.appearance_->makeDefault(a.paintSelection());a.markEdited();a.refreshPaint();if(action==4)a.message("Default appearance updated in the first paint slot. Existing saved paint selections are unchanged.");}});}),this);}
         viewMode_=gtk_combo_box_text_new();for(auto *label:{"Painted + Livery","Car preview","Texture preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(viewMode_),label);gtk_combo_box_set_active(GTK_COMBO_BOX(viewMode_),0);gtk_box_pack_start(GTK_BOX(controls),viewMode_,false,false,6);g_signal_connect(viewMode_,"changed",G_CALLBACK(+[](GtkComboBox *c,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.view_=gtk_combo_box_get_active(c);gtk_widget_queue_draw(a.canvas_);}),this);
         attachmentControls_=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_box_pack_start(GTK_BOX(controls),attachmentControls_,false,false,0);gtk_widget_set_no_show_all(attachmentControls_,true);
         gtk_box_pack_start(GTK_BOX(attachmentControls_),gtk_label_new("Attachment placement (Ctrl+Z undo)"),false,false,6);
@@ -348,7 +433,7 @@ public:
         g_signal_connect(car_,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.selectCar();});}),this);
         g_signal_connect(node_,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.selectNode();});}),this);
         g_signal_connect(paint_,"changed",G_CALLBACK(+[](GtkComboBox *w,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);auto id=gtk_combo_box_get_active_id(w);if(id)a.guard([&]{a.paintIndex_=std::stoul(id);a.refreshPaint();});}),this);
-        g_signal_connect(reset,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.remember(a.values_.at(a.key()));a.mod_.cars.at(a.currentCar_)->reset(a.selected_);a.values_.erase(a.key());a.selectNode();a.refreshNodes();a.unsaved_=true;});}),this);
+        g_signal_connect(reset,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.remember(a.values_.at(a.key()));a.mod_.cars.at(a.currentCar_)->reset(a.selected_);a.values_.erase(a.key());a.selectNode();a.refreshNodes();a.markEdited();});}),this);
         g_signal_connect(exportButton,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.exportCopy();});}),this);
         g_signal_connect(canvas_,"draw",G_CALLBACK(+[](GtkWidget *w,cairo_t *cr,gpointer p)->gboolean{auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.drawPreview(cr,gtk_widget_get_allocated_width(w),gtk_widget_get_allocated_height(w));});return FALSE;}),this);
         for(const auto &entry:mod_.cars){auto label=localized(labels_,"car_"+entry.first);gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(car_),entry.first.c_str(),label.c_str());}
@@ -357,14 +442,46 @@ public:
         gtk_widget_show_all(dialog_);
     }
     void run(GtkWindow *parent){build(parent);for(;;){gtk_dialog_run(GTK_DIALOG(dialog_));if(!unsaved_)break;auto *q=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Discard adjustments that have not been exported?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer==GTK_RESPONSE_YES)break;}gtk_window_get_size(GTK_WINDOW(dialog_),&windowWidth,&windowHeight);maximized=gtk_window_is_maximized(GTK_WINDOW(dialog_));gtk_widget_destroy(dialog_);dialog_=nullptr;}
+    void smokeMigration(const fs::path &out){
+        require(legacyOrigin_,"Migration fixture already has origin metadata");auto missing=mod_.unresolvedOrigins();auto incompatible=mod_.incompatibleOrigins();
+        require(!missing.empty()||!incompatible.empty(),"Migration fixture needs an unknown or incompatible car ID");
+        build(nullptr);require(!gtk_widget_get_sensitive(exportButton_),"Incomplete legacy metadata allowed export");
+        fs::create_directories(out);
+        auto identity=mod_.originMetadata().packageId();for(const auto &id:missing)gtk_combo_box_set_active_id(GTK_COMBO_BOX(migrationDonors_.at(id)),"alf");
+        require(mod_.unresolvedOrigins().empty(),"Choosing donors left an authored car unresolved");
+        if(!incompatible.empty()){
+            require(!gtk_widget_get_sensitive(exportButton_),"Incompatible car ID allowed export");
+            bool rejected=false;try{mod_.exportCopy(out/"incompatible");}catch(const std::exception&){rejected=true;}
+            require(rejected&&!fs::exists(out/"incompatible"),"Incompatible car ID exported without validation");
+            require(std::string(gtk_label_get_text(GTK_LABEL(migrationInfo_))).find(incompatible.front())!=std::string::npos,"Migration notice omitted the incompatible car ID");
+        } else {
+            require(gtk_widget_get_sensitive(exportButton_),"Choosing donors did not enable export");
+            mod_.exportCopy(out/"replace");gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),"add");mod_.exportCopy(out/"add");
+            for(const auto &mode:{"replace","add"}){ImportedMod check(out/mode,&stock_);auto origin=check.originMetadata();require(origin.packageId()==identity&&origin.overwrite()==(std::string(mode)=="replace"),"Migration identity or policy lost");for(const auto &id:missing)require(origin.mappings().at(id)=="alf","Migration donor lost");}
+        }
+        require(std::none_of(fs::directory_iterator(mod_.source),fs::directory_iterator(),[](const auto &e){return lower(e.path().filename().u8string())=="origin.txt";}),"Migration modified input");
+        for(int wait=0;wait<30;wait++){while(gtk_events_pending())gtk_main_iteration();g_usleep(1000);}auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(dialog_),gtk_widget_get_allocated_height(dialog_));auto *cr=cairo_create(surface);gtk_widget_draw(dialog_,cr);cairo_destroy(cr);cairo_surface_write_to_png(surface,(out/"migration-editor.png").u8string().c_str());cairo_surface_destroy(surface);gtk_widget_destroy(dialog_);dialog_=nullptr;
+        std::cout<<(incompatible.empty()?"PASS legacy import, explicit GUI donor selection, export gating, both modes, stable identity and source preservation":"PASS legacy runtime-slot import, actionable gating and unchanged source")<<"\n";
+    }
     void smokeUnified(const fs::path &out){
         require(mod_.files.empty(),"Unified stock session includes imported files");build(nullptr);require(!placement_,"Placement opened on startup");fs::create_directories(out);
         require(gtk_combo_box_get_active(GTK_COMBO_BOX(multiplierStyle_))==2,"Pulse bracket style not detected");gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),1);require(hudEdits_.count("alf")&&identifyMultiplierStyle(stock_,hudEdits_.at("alf"))==0,"Four-bracket selection failed");mod_.exportCopy(out/"brackets-only",extraFiles());ImportedMod bracketRoundtrip(out/"brackets-only",&stock_);require(bracketRoundtrip.cars.count("alf")&&identifyMultiplierStyle(stock_,bracketRoundtrip.assetBytes(hudTexturePath("alf"),stock_))==0,"HUD-only export/reimport failed");gtk_combo_box_set_active(GTK_COMBO_BOX(car_),1);gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"alf");require(gtk_combo_box_get_active(GTK_COMBO_BOX(multiplierStyle_))==1,"Switching cars lost bracket choice");gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),0);require(!hudEdits_.count("alf"),"Keep original failed to restore source atlas");gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),1);
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(unlockMode_),"artist-title");require(!gtk_widget_get_sensitive(carPrice_)&&gtk_widget_get_sensitive(unlockTitle_),"Music unlock field sensitivity");
+        gtk_entry_set_text(GTK_ENTRY(unlockArtist_),"GUI Artist");gtk_entry_set_text(GTK_ENTRY(unlockTitle_),"GUI Title");gtk_spin_button_set_value(GTK_SPIN_BUTTON(packPrice_),321);gtk_button_clicked(GTK_BUTTON(unlockApply_));require(unlocks_->get("alf").value("songUnlock",std::string())=="GUI Title"&&colors_->price(paintSelection())==321,"Unlock/price button did not apply");
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"bui");require(gtk_widget_get_sensitive(carPrice_)&&!gtk_widget_get_sensitive(unlockTitle_),"Shop price field sensitivity");gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"alf");require(std::string(gtk_entry_get_text(GTK_ENTRY(unlockTitle_)))=="GUI Title"&&gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(packPrice_))==321,"Switching cars lost unlock/price edits");
         auto p=paintSelection();require(p.car=="alf","Stock car selection failed");auto source=appearance_->imageTemplate(p);appearance_->importPNG(p,diagnostic(source.texture));colors_->set(p,"col0",{25,50,75});refreshPaint();
         gtk_combo_box_set_active(GTK_COMBO_BOX(car_),1);gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),p.car.c_str());require(colors_->get(p,"col0",3)==std::vector<float>({25,50,75})&&appearance_->decal(p),"Switching stock cars lost edits");
         for(int mode=0;mode<5;mode++){gtk_combo_box_set_active(GTK_COMBO_BOX(viewMode_),mode);auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,900,600);auto *cr=cairo_create(surface);drawPreview(cr,900,600);cairo_destroy(cr);require(cairo_surface_write_to_png(surface,(out/("view-"+std::to_string(mode)+".png")).u8string().c_str())==CAIRO_STATUS_SUCCESS,"Preview export failed");cairo_surface_destroy(surface);}
         gtk_combo_box_set_active(GTK_COMBO_BOX(viewMode_),0);auto *templateSurface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,source.texture.width,source.texture.height);auto *templateCr=cairo_create(templateSurface);uv(templateCr,source.texture.width,source.texture.height);cairo_destroy(templateCr);require(cairo_surface_write_to_png(templateSurface,(out/"uv-template.png").u8string().c_str())==CAIRO_STATUS_SUCCESS,"UV export failed");cairo_surface_destroy(templateSurface);
         mod_.exportCopy(out/"stock-mod",extraFiles());ImportedMod roundtrip(out/"stock-mod",&stock_);ModAppearance appearance(roundtrip,stock_,labels_);require(appearance.colors->get(p,"col0",3)==std::vector<float>({25,50,75})&&appearance.decal(p),"Stock export/reimport failed");
+        require(roundtrip.originMetadata().overwrite(),"Stock editor did not default to replacement");
+        auto identity=roundtrip.originMetadata().packageId();gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),"add");
+        mod_.exportCopy(out/"new-car-mod",extraFiles());ImportedMod newCar(out/"new-car-mod",&stock_);
+        require(!newCar.originMetadata().overwrite()&&newCar.originMetadata().packageId()==identity,"GUI export choice or package identity lost");
+        require(newCar.originMetadata().mappings().size()==1&&newCar.originMetadata().mappings().at("alf")=="alf","GUI registered untouched cars from shared config");
+        AttachmentEditor reopened(stock_,out/"new-car-mod");reopened.build(nullptr);require(std::string(gtk_combo_box_get_active_id(GTK_COMBO_BOX(reopened.exportMode_)))=="add","Imported export choice not shown");gtk_widget_destroy(reopened.dialog_);reopened.dialog_=nullptr;
+        gtk_combo_box_set_active_id(GTK_COMBO_BOX(exportMode_),"replace");
+        UnlockConfig importedUnlocks(roundtrip,stock_);require(importedUnlocks.get("alf").value("songUnlock",std::string())=="GUI Title"&&appearance.colors->price(p)==321,"GUI unlock/price export failed");gtk_expander_set_expanded(GTK_EXPANDER(gtk_widget_get_parent(gtk_widget_get_parent(unlockMode_))),true);
         for(int wait=0;wait<30;wait++){while(gtk_events_pending())gtk_main_iteration();g_usleep(1000);}auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(dialog_),gtk_widget_get_allocated_height(dialog_));auto *cr=cairo_create(surface);gtk_widget_draw(dialog_,cr);cairo_destroy(cr);cairo_surface_write_to_png(surface,(out/"unified-editor.png").u8string().c_str());cairo_surface_destroy(surface);gtk_widget_destroy(dialog_);dialog_=nullptr;
         std::cout<<"PASS unified stock startup, source controls, five preview modes, test livery, UV template, car switching and export/reimport\n";
     }

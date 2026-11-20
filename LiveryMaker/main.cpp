@@ -302,6 +302,7 @@ struct App {
 int main(int argc,char **argv) {
     try {
         prepareRuntime();
+        if(argc==5&&std::string(argv[1])=="--smoke-migration"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());AttachmentEditor(stock,fs::u8path(argv[3])).smokeMigration(fs::u8path(argv[4]));return 0;}
         if(argc==5&&std::string(argv[1])=="--smoke-model-import"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());ModelImportDialog(stock,fs::u8path(argv[3])).run(nullptr,fs::u8path(argv[4]));std::cout<<"Model import dialog, validation, export and reimport passed\n";return 0;}
 
         if(argc==4&&std::string(argv[1])=="--smoke-unified") {gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());AttachmentEditor(stock,{}).smokeUnified(fs::u8path(argv[3]));return 0;}

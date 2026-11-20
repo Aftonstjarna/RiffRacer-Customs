@@ -17,6 +17,7 @@ int main(int argc,char **argv) {
         if(fs::create_directory(candidate)){root=candidate;break;}
     }
     require(!root.empty(),"Cannot create test directory");
+    auto origins=originText({{"graphics/vehicles/alf/nodes.bdae",{}}},"customs-test");require(std::string(origins.begin(),origins.end())=="[mod]\nid=customs-test\noverwrite=1\n\n[origins]\nalf=alf\n","Stock donor metadata or replacement policy missing");
     Image image{8,8,Bytes(8*8*4)};for(size_t i=0;i<64;i++){image.pixels[i*4]=255;image.pixels[i*4+1]=32;image.pixels[i*4+2]=64;image.pixels[i*4+3]=uint8_t((i%4)*85);}
     for(auto format:{"DXT3","DXT5"}) {
         Texture t{"test",format,8,8,2,4,0,Bytes(128)};std::memcpy(t.dds.data(),"DDS ",4);set32(t.dds,4,124);set32(t.dds,12,8);set32(t.dds,16,8);set32(t.dds,28,4);set32(t.dds,76,32);set32(t.dds,80,4);std::memcpy(t.dds.data()+84,format,4);t.dds.resize(128+64+16+16+16);
