@@ -361,8 +361,8 @@ Normal startup now opens the unified paint/livery/attachment editor for stock
 cars using the remembered game folder. On the first run, choose the game folder.
 The old standalone paint window is no longer part of the normal interface.
 
-The top toolbar contains **Open game folder**, **Import mod folder**, **Import
-mod ZIP**, **Stock cars / new mod**, and **Updates…**. Opening a
+The top row contains **Open game folder**, **Import mod folder**, **Import mod
+ZIP**, **Stock cars / new mod**, and **Updates…** at the right. Opening a
 different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.

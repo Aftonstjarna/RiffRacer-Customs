@@ -393,7 +393,7 @@ public:
         adjustButton_=gtk_toggle_button_new_with_label("Adjust HUD / boosters");gtk_box_pack_start(GTK_BOX(top),adjustButton_,false,false,0);
         auto *exportButton=gtk_button_new_with_label("Export mod");exportButton_=exportButton;gtk_box_pack_end(GTK_BOX(top),exportButton,false,false,0);buildExportMode(top);
         updates_=std::make_unique<update::UpdatePanel>(CUSTOMS_VERSION,[this]{return confirmUpdate();},[]{std::exit(0);});
-        updates_->buildButton(top);
+        updates_->buildButton(sources);
         auto *paned=gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);gtk_box_pack_start(GTK_BOX(content),paned,true,true,5);
         auto *scroll=gtk_scrolled_window_new(nullptr,nullptr);gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);gtk_scrolled_window_set_overlay_scrolling(GTK_SCROLLED_WINDOW(scroll),false);gtk_widget_set_size_request(scroll,299,200);gtk_paned_pack1(GTK_PANED(paned),scroll,false,false);
         auto *controls=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(controls),8);gtk_container_add(GTK_CONTAINER(scroll),controls);
