@@ -458,10 +458,24 @@ stay the donor's, and `collision.btinfo` is unchanged.
 **Rebuild effect shells** (default on) generates the `zone_front`, `electric` and
 `zone_back` shells from the imported exterior, simplifies them to the donor
 effect budgets, offsets them outward and projects cylindrical UVs. The donor
-effect materials and activation remain; the projected fade is experimental. The
-donor's driving setup, animation and shadow meshes are retained. Use the
-placement editor for HUD/NOS adjustments; collision, glow, clipping, wheel
-animation, texture orientation and visual alignment require an in-game test.
+effect materials and activation remain; the projected fade is experimental.
+
+**Use a neutral body paint mask** (default on) replaces `carpaint_occspec` with a
+uniform 512² yellow DXT1 texture, removing the donor's occlusion/livery pattern.
+**Add one extra paint slot** clones the darkest donor paint, clears its decal,
+sets its price to 1 and appends it to `paint.cfg`, `paint_PC.cfg` and the 32-bit
+paint Lua. It reuses an unused stock paint-name token and renames that token to
+the entered name. The 64-bit Lua is unchanged.
+
+**Apply names to all languages** (default on) writes the car and extra-paint
+names into all eight string banks; turn it off to update only US and GB. When the
+GLB contains author, licence or source metadata, the package also includes an
+`ATTRIBUTION.txt`.
+
+The donor's driving setup, animation and shadow meshes are retained. Use the
+placement editor for HUD/NOS adjustments; collision, glow, clipping, paint slots,
+wheel animation, texture orientation and visual alignment require an in-game
+test.
 
 `model-import.json` records input/donor/output hashes, conversion options, part
 assignments, dimensions and limitations. Include the model author's attribution

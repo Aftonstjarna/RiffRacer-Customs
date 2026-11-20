@@ -14,7 +14,7 @@ inline std::u16string nameUTF16(const std::string &text){
 }
 
 // Replace localized text only: retain native token IDs, order and other strings.
-template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const std::map<std::string,std::string> &changes){
+template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const std::map<std::string,std::string> &changes,bool allLocales=false){
     if(changes.empty())return {};
     auto tokens=load("strings/tokens.dat");require(u32(tokens,0)==3&&u32(tokens,4)==2,"Unsupported tokens");auto count=u32(tokens,8);require(count>0&&count<=32,"Invalid groups");size_t at=12;
     std::vector<std::string> groups;std::vector<unsigned> counts,used(count,0);std::map<unsigned,std::map<unsigned,std::string>> edits;std::set<std::string> found;
@@ -23,7 +23,8 @@ template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const 
     require(found.size()==changes.size(),"Name token missing from imported localization");std::map<std::string,Bytes> result;
     // US and GB share the English car and paint names; patch both so the name
     // matches whichever English locale the game uses.
-    for(const auto &group:edits)for(const char *locale:{"us","gb"}){auto path="strings/"+lower(groups[group.first])+"/"+locale+".str";auto original=load(path);require(u32(original,0)==3&&u32(original,4)==2,"Unsupported string bank");Bytes out(original.begin(),original.begin()+8);at=8;
+    static const char *english[]={"us","gb"},*every[]={"us","gb","de","fr","es","it","br","ru"};const char **locales=allLocales?every:english;unsigned localeCount=allLocales?8:2;
+    for(const auto &group:edits)for(unsigned localeIndex=0;localeIndex<localeCount;localeIndex++){const char *locale=locales[localeIndex];auto path="strings/"+lower(groups[group.first])+"/"+locale+".str";auto original=load(path);require(u32(original,0)==3&&u32(original,4)==2,"Unsupported string bank");Bytes out(original.begin(),original.begin()+8);at=8;
         for(unsigned i=0;i<counts[group.first];i++){auto units=u32(original,at);require(at+4<=original.size()&&uint64_t(units)*2<=original.size()-at-4,"Truncated localized string");auto edit=group.second.find(i);
             if(edit==group.second.end())out.insert(out.end(),original.begin()+at,original.begin()+at+4+units*2);
             else {require(!edit->second.empty()&&edit->second.size()<=240,"Name must contain 1–240 UTF-8 bytes");auto utf16=nameUTF16(edit->second);require(utf16.find(u'\0')==std::u16string::npos,"Name contains NUL");put32(out,uint32_t(utf16.size()));for(auto c:utf16)put16(out,c);}
