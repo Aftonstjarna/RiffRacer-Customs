@@ -1,3 +1,59 @@
+# RiffRacer Customs 0.3.0-beta.5
+
+## In-game summary
+
+- Build a custom car from a GLB inside the editor.
+- Match vanilla detail or choose higher polygon and texture budgets.
+- Generate collision, effects, paint slots and names automatically.
+
+## Full release notes
+
+- Import static GLB 2.0 cars end to end: geometry conversion, donor fitting,
+  base-color textures, native materials, collision, effects, paint, names and
+  packaging.
+- Choose a detail level: **Light**, **Vanilla-matched**, **High** or **Full
+  source**. Quadric edge-collapse simplification protects UV seams and
+  boundaries; imported meshes are merged by node and material. Normal levels
+  keep the painted body intact and fit the rest to the donor triangle budget.
+- Import base-color PNG textures: power-of-two resize, full mip chains,
+  DXT1/DXT5 encoding and TABT atlas rebuild. **Materials…** sets the native
+  template, texture size (256–2048) and finish (matte, satin, glossy or
+  chrome) per category, or disables a texture. DXT colour endpoints now use a
+  principal-axis and least-squares fit instead of a bounding box.
+- Fit the donor collision hull to the imported wheel width and body length and
+  roof, preserve ground clearance, and update the hull's broadphase bounds.
+  Fit the ground shadow and garage selection box to the same bounds.
+- Rebuild the `zone_front`, `electric` and `zone_back` effect shells from the
+  imported exterior with the donor effect materials, stride-28 layout and
+  projected UVs.
+- Replace `carpaint_occspec` with a uniform neutral mask and add one extra
+  decal-free paint priced at 1, cloned from the darkest donor pack. Update both
+  paint CFGs and the 32-bit Lua, respecting the client's nine-pack limit.
+- Write the car and paint names into all eight string banks, and generate
+  `ATTRIBUTION.txt` from the GLB's author, licence, title and source metadata.
+- **Add as a new car** accepts an authored three-letter ID and namespaces its
+  assets, paint table, origin mapping and names. It requires a stock name token
+  such as `dod`; the ReRiff composer remaps it to a free native slot.
+- Keep the earlier toolbar, scrollbar and in-app updater changes from beta.4.
+
+Validation: GLB parsing, material/category mapping, texture PNG/DXT/atlas,
+decimation, paint configuration, collision/shadow fitting, locale names,
+attribution and updater rules are covered by automated tests. The Impala GLB
+was converted against multiple donors and reimported; the authored-ID export,
+nine-pack paint limit, neutral mask, Lua and fitted shadow/box were checked.
+Windows, Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: the imported car still needs an in-game check of textures, glow,
+collision and the extra paint. Source metallic/roughness, normal, occlusion and
+emissive maps, vertex colours and base-colour factors are not converted.
+Collision is an affine fit of the donor hull, effect UVs and fades are
+experimental, and the extra paint is skipped when the donor already has nine
+packs. Add mode needs a stock name token. The import preview shows geometry and
+material colours, not the generated textures. Standalone packages patch the
+32-bit paint Lua; the ReRiff composer regenerates both Lua variants.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.4
 
 ## In-game summary
