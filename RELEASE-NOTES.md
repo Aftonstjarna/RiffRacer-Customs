@@ -1,3 +1,49 @@
+# RiffRacer Customs 0.3.0
+
+## In-game summary
+
+- Add imported cars as new cars instead of replacing a stock donor.
+- Migrate older custom-car mods by choosing each donor once.
+- Set car unlocks and shop prices, including artist and title rules.
+
+## Full release notes
+
+- Choose **Replace donor car** or **Add as a new car** for imported models and
+  packages. Add mode needs a ReRiff client with automatic car-slot support.
+- Write `origin.txt` beside `assets/` with a stable package identity and one
+  stock donor per authored car. The identity survives edits, repeated exports,
+  reimports and folder renames, so ReRiff can recognise one installed package.
+- Import legacy mod folders and ZIPs without `origin.txt`. Known stock resource
+  IDs map automatically; unknown custom IDs are assigned with **Legacy car
+  migration** by donor name. Imports open before mapping completes, and export
+  stays disabled until every donor is chosen.
+- Keep imported metadata byte-for-byte, including comments and line endings,
+  until its policy or mappings change. Ownership receipts record the exported
+  metadata hash.
+- Open **Unlock and prices** to choose the car unlock type: keep the existing
+  rule, available from start, play a track, shop purchase, artist, or
+  artist – title. Edit the car price for shop purchases and the shared
+  paint/livery price. Zero makes a paint free.
+- Patch native unlock and paint configuration in place, preserving unrelated
+  fields, records and Lua initialization. Exports include paired CFG/Lua files
+  and a hash manifest for the customs-unlock client extension.
+- Refuse runtime car slots and non-authored IDs in metadata, with a clear rename
+  message instead of guessing a donor from geometry or a car name.
+
+Validation: automated origin metadata, stable identity, legacy migration,
+ownership, unlock, price, config roundtrip and Lua patch checks, plus the
+existing geometry, texture, HUD, snapping and editor export/reimport tests.
+Windows and Linux portable packages are built and smoke-tested.
+
+Limitations: new-car mode requires a ReRiff client with automatic car-slot
+support and an available custom slot. Install only one copy of a package.
+Custom music unlock rules require the matching Customs-unlock client extension;
+the original game ignores artist and title rules beyond Police and Monaco.
+Existing saved ownership is not revoked by changing rules or prices. Export
+edits before closing.
+
+---
+
 # RiffRacer Customs 0.2.0
 
 ## In-game summary
