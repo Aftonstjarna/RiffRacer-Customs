@@ -140,6 +140,7 @@ public:
         for(const auto &file:overrides){validPath(file.first);require(file.first.rfind("assets/",0)==0,"Override must be a game asset");auto found=std::find_if(exported.begin(),exported.end(),[&](const auto &entry){return lower(entry.first)==lower(file.first);});if(found==exported.end())exported[file.first]=file.second;else found->second=file.second;}
         Json changed=Json::array();
         for(const auto &car:cars)if(car.second->changed()){auto name="assets/graphics/vehicles/"+car.first+"/nodes.bdae";bool found=false;for(auto &f:exported)if(lower(f.first)==name){f.second=car.second->bytes();found=true;}if(!found)exported[name]=car.second->bytes();changed.push_back(name);}
+        normalizeAssetKeys(exported,true);
         // Preserve declared custom donors across re-export. Stock replacements
         // can derive their origin directly from native resource IDs.
         auto origin=std::find_if(exported.begin(),exported.end(),[](const auto &f){return lower(f.first)=="origin.txt";});

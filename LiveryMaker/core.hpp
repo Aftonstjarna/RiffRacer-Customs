@@ -570,9 +570,23 @@ inline Bytes originText(const std::map<std::string,Bytes> &files,const std::stri
     // Start with the conventional section order for new packages.
     auto text="[mod]\nid="+packageId+"\noverwrite=1\n\n[origins]\n";Origin origin(Bytes(text.begin(),text.end()),packageId);origin.complete(files);return origin.bytes();
 }
+// Native VFS indexes use lowercase ASCII names even when stock archives keep
+// mixed case. Normalize exported assets so every cache builder accepts them.
+inline void normalizeAssetKeys(std::map<std::string,Bytes> &files,bool assetsPrefix) {
+    std::map<std::string,Bytes> out;
+    for(auto &entry:files) {
+        bool target=!assetsPrefix||entry.first.rfind("assets/",0)==0;
+        std::string name=target?lower(entry.first):entry.first;
+        auto found=out.find(name);
+        if(found!=out.end()){require(found->second==entry.second,"Case-only duplicate asset differs: "+name);continue;}
+        out.emplace(name,std::move(entry.second));
+    }
+    files.swap(out);
+}
 inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Bytes *explicitOrigins=nullptr,bool includeOrigin=true) {
     auto dest=safePath(fs::absolute(destination));
     require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
+    auto assets=files;normalizeAssetKeys(assets,false);
     Bytes origins;
     if(fs::exists(dest)) {
         verifyOwnedMod(dest);
@@ -581,15 +595,15 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     }
     if(includeOrigin) {
         if(explicitOrigins)origins=*explicitOrigins;
-        if(origins.empty()&&!explicitOrigins&&!fs::exists(dest/"origin.txt"))origins=originText(files);
-        Origin declaration(origins);declaration.complete(files);origins=declaration.bytes();
+        if(origins.empty()&&!explicitOrigins&&!fs::exists(dest/"origin.txt"))origins=originText(assets);
+        Origin declaration(origins);declaration.complete(assets);origins=declaration.bytes();
     }
-    require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
-    for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
+    require(!assets.empty() && assets.size()<0x3fff,"Invalid resource count");
+    for(const auto &entry:assets){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
     metadata["tool"]="reriff-livery-maker-v2";metadata["format"]="loose-v1";
     metadata.erase("dat_sha256");metadata.erase("zip_sha256");
     metadata["resources"]=Json::array();metadata["sibling_resource_conflicts"]=Json::array();
-    for(const auto &entry:files) {
+    for(const auto &entry:assets) {
         metadata["resources"].push_back({{"path",entry.first},{"sha256",sha(entry.second)}});
         for(const auto &conflict:conflicts(dest.parent_path(),dest,entry.first))metadata["sibling_resource_conflicts"].push_back(conflict);
     }
@@ -597,7 +611,7 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     require(!fs::exists(stage) && !fs::exists(backup),"Staging path already exists");require(fs::create_directory(stage),"Cannot create staging folder");
     bool moved=false;
     try {
-        for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
+        for(const auto &entry:assets){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
         if(includeOrigin){write(stage/"origin.txt",origins);metadata["origin_sha256"]=sha(origins);}
         save(stage/"livery-maker.json",metadata);verifyOwnedMod(stage);
         if(fs::exists(dest)) {fs::rename(dest,backup);moved=true;}
@@ -609,8 +623,9 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
 inline Json publishPaintMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination) {
     auto dest=safePath(fs::absolute(destination));
     require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
-    require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
-    for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
+    auto assets=files;normalizeAssetKeys(assets,false);
+    require(!assets.empty() && assets.size()<0x3fff,"Invalid resource count");
+    for(const auto &entry:assets){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
     if(fs::exists(dest)) {
         require(fs::is_directory(dest)&&!isOutputLink(dest),"Output is not a real directory");
         require(!isOutputLink(dest/"livery-maker.json")&&fs::is_regular_file(dest/"livery-maker.json"),"Refusing to overwrite an unrelated folder");
@@ -618,12 +633,12 @@ inline Json publishPaintMod(const std::map<std::string,Bytes> &files,Json metada
     }
     metadata["tool"]="reriff-livery-maker-v1";metadata.erase("format");metadata.erase("dat_sha256");metadata.erase("zip_sha256");
     metadata["resources"]=Json::array();metadata["sibling_resource_conflicts"]=Json::array();
-    for(const auto &entry:files){metadata["resources"].push_back({{"path",entry.first},{"sha256",sha(entry.second)}});for(const auto &conflict:conflicts(dest.parent_path(),dest,entry.first))metadata["sibling_resource_conflicts"].push_back(conflict);}
+    for(const auto &entry:assets){metadata["resources"].push_back({{"path",entry.first},{"sha256",sha(entry.second)}});for(const auto &conflict:conflicts(dest.parent_path(),dest,entry.first))metadata["sibling_resource_conflicts"].push_back(conflict);}
     fs::create_directories(dest.parent_path());auto stage=dest;stage+=".staging-"+std::to_string(processId());auto backup=dest;backup+=".previous-"+std::to_string(processId());
     require(!fs::exists(stage)&&!fs::exists(backup),"Staging path already exists");require(fs::create_directory(stage),"Cannot create staging folder");
     bool moved=false;
     try {
-        for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
+        for(const auto &entry:assets){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
         save(stage/"livery-maker.json",metadata);
         if(fs::exists(dest)){fs::rename(dest,backup);moved=true;}
         fs::rename(stage,dest);if(moved)fs::remove_all(backup);
