@@ -1,3 +1,45 @@
+# RiffRacer Customs 0.3.0-beta.6
+
+## In-game summary
+
+- Snap HUD parts with Space and follow body curves with Ctrl+Space.
+- Reset the selected attachment instantly with Ctrl+Shift+Z.
+- Choose from 13 native boost meter shapes with a live preview.
+
+## Full release notes
+
+- Add placement shortcuts: **Space** snaps the selected HUD element or boost
+  outlet to the nearest exposed body surface, and **Ctrl+Space** also averages
+  surrounding outward faces so the part follows local body curvature. The
+  footprint is lifted over curved panels. **Ctrl+Shift+Z** resets the selected
+  attachment to its imported transform as one undoable step. Enabling placement
+  focuses the preview so the shortcuts work immediately.
+- Rename the former **Add PNG decal** action to **Add clear PNG livery** and
+  place it directly below **Import PNG livery**.
+- Add a **Boost meter shape** selector beside the multiplier style control. It
+  lists the 13 distinct native stock `car_meter` artworks, labelled by source
+  car, with a live preview. Copies only the original `car_meter` DDS payload;
+  other HUD textures and bytes stay unchanged.
+- Compose the boost meter and multiplier choices over the imported HUD atlas, so
+  changing one never discards the other. **Keep imported / original** restores
+  only the selected artwork. Choices retain while switching cars and are included
+  in exported mods.
+- Keep the earlier importer, authored-ID, nine-pack paint, texture, collision,
+  shadow and locale changes from beta.5.
+
+Validation: automated tests cover the new shortcuts, curved-surface normal
+averaging, clear-livery placement, all 13 meter swaps, composed styles,
+export/reimport and UI retention. Placement controls and the selector were
+captured at the standard window size. Windows, Linux and AnyLinux packages are
+built and smoke-tested.
+
+Limitations: curvature following is a local normal average, not a curved decal
+projection; check seams, open windows and sharply curved bodywork in game. Meter
+and multiplier controls require a native HUD atlas for the current car. The HUD
+preview remains static and approximate.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.5
 
 ## In-game summary
