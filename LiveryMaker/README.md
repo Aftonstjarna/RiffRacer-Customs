@@ -399,27 +399,36 @@ export pending edits first. Startup checks are optional and cached for
 
 ### Static model import (development build)
 
-Use **Import 3D model** in the unified editor, select an embedded GLB 2.0 file,
-and review the source orientation, scale, donor and part roles. The initial scale
+Use **Import 3D model** in the unified editor and select an embedded GLB 2.0
+file. The default **Simple** view asks only for the in-game car name, donor,
+export mode and detail level. The donor is ranked automatically by collision
+width; the model is fitted automatically and part roles are assigned from part
+and material names. **Add as a new car** is the safe default, leaving the stock
+car unchanged, and the new car ID is generated from the name. **Create mod and
+edit** previews the conversion automatically, then exports to a new folder and
+opens it in the paint/livery/HUD editor.
+
+**Show advanced options** exposes source scale, orientation, Z-up correction,
+donor re-ranking, the editable authored car ID, fitting, collision, effects,
+paint mask and slot, shadow, materials and all part roles. The initial scale
 fits the source length to the median supported stock visual length; it is an
 editable estimate, not a units measurement. **Suggest donor by width** ranks
 supported stock collision widths against the oriented model at that scale;
 height and length break ties. It does not compare collision shape or handling.
 
 Assign each primitive to painted body, glass, metal/chrome, interior/plastic,
-wheels or ignore. Suggestions use names and must be reviewed. **Fit to donor**
-uses four wheel groups to fit wheelbase and track, or body length if no wheels
-are assigned. This may change proportions. With Fit off, source scale is retained
-and the model is centered and grounded. Donor wheel pivots are retained; their
-alignment with the body must be checked in game. Without imported wheels, stock
-wheel geometry is retained.
+wheels or ignore. Suggestions use names; review them in Advanced only when a
+part is wrong. **Fit to donor** uses four wheel groups to fit wheelbase and
+track, or body length if no wheels are assigned. This may change proportions.
+With Fit off, source scale is retained and the model is centered and grounded.
+Donor wheel pivots are retained; their alignment with the body must be checked
+in game. Without imported wheels, stock wheel geometry is retained.
 
-**Preview conversion** validates and displays the resulting native geometry.
-Changing settings invalidates that preview. **Create mod and edit** exports to a
-new folder and opens it in the existing paint/livery/HUD/booster editor. Source
-files and the game installation are not modified. Choose **Replace donor car**
-or **Add as a new car**; the latter requires ReRiff automatic car-slot support.
-Export subsequent editor adjustments to another folder and install only that final copy.
+Changing settings invalidates the preview; **Create mod and edit** regenerates
+it before exporting. Source files and the game installation are not modified.
+Choose **Replace donor car** or **Add as a new car**; the latter requires ReRiff
+automatic car-slot support. Export subsequent editor adjustments to another
+folder and install only that final copy.
 
 The converter imports base-color textures for chrome, front-chrome, interior and
 wheel-rim parts, and grille and headlight parts are classified separately from
