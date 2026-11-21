@@ -31,7 +31,7 @@ int main(){fs::path root;try{
  refuses([&]{fallback.setFallback("xyz","fab");});
  Origin orphan(bytes("[mod]\nid=orphan\noverwrite=0\n[origins]\ndod=alf\n[fallbacks]\nabc=fab\n"));refuses([&]{orphan.complete({{"graphics/vehicles/dod/nodes.bdae",{}}});});
  auto mixed=files;mixed["graphics/vehicles/decals/alf_01/batchTextures.brres"]={9};publishMod(mixed,Json::object(),root/"mixed-case");
- require(fs::exists(root/"mixed-case/assets/graphics/vehicles/decals/alf_01/batchtextures.brres")&&!fs::exists(root/"mixed-case/assets/graphics/vehicles/decals/alf_01/batchTextures.brres"),"Exported asset name was not normalized");
+ auto mixedDir=root/"mixed-case/assets/graphics/vehicles/decals/alf_01";bool lowerName=false,mixedName=false;for(const auto &entry:fs::directory_iterator(mixedDir)){auto name=entry.path().filename().u8string();lowerName=lowerName||name=="batchtextures.brres";mixedName=mixedName||name=="batchTextures.brres";}require(lowerName&&!mixedName,"Exported asset name was not normalized");
  Origin persistent(originText(files,"customs-fallback"));persistent.setFallback("alf","fab");publishMod(files,Json::object(),root/"fallback",persistent);
  auto storedFallback=Origin(read((root/"fallback/origin.txt").u8string()));require(storedFallback.fallbacks().at("alf")=="fab"&&storedFallback.mappings().at("alf")=="alf","Exported fallback did not survive");
  write(out/"origin.txt",bytes("external change"));refuses([&]{publishMod(files,Json::object(),out,custom);});require(read((out/"origin.txt").u8string())==bytes("external change"),"External metadata overwritten");
