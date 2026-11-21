@@ -72,7 +72,7 @@ struct App {
     GtkWidget *window{},*carCombo{},*combo{},*status{},*canvas{},*mode{};
     std::unique_ptr<PaintConfig> paintConfig;GtkWidget *exportButton{};bool updatingColors=false;
     std::vector<std::pair<std::string,GtkWidget*>> colorButtons;
-    std::unique_ptr<Archive> archive;std::unique_ptr<Target> selected;
+    std::unique_ptr<Archive> archive;std::unique_ptr<Target> selected;bool testArtwork=false;
     std::map<std::string,std::string> names;
     std::vector<PaintSelection> paints;std::vector<GtkWidget*> editing;size_t chosen=0;
     Image original,art,preview;std::unique_ptr<Model> model;
@@ -90,6 +90,14 @@ struct App {
         if(suggest)gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),suggest);
         std::string p;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *s=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));p=s;g_free(s);}gtk_widget_destroy(d);return p;
     }
+    std::string exportBaseName() const {
+        if(paints.empty()||chosen>=paints.size())return "car";
+        auto name=paints.at(chosen).carName;std::string base;
+        for(unsigned char c:name){if(std::isalnum(c))base.push_back(char(std::tolower(c)));else if(!base.empty()&&base.back()!='-')base.push_back('-');}
+        while(!base.empty()&&base.back()=='-')base.pop_back();
+        return base.empty()?paints.at(chosen).car:base;
+    }
+    std::string exportFileName(const char *kind) const {return exportBaseName()+"-"+kind+".png";}
     void load(const std::string &p,bool persist=true) {
         auto next=std::make_unique<Archive>((fs::u8path(p)/"vfs.zip").u8string());
         auto labels=displayNames(*next);auto selections=paintSelections(*next,labels);
@@ -129,7 +137,7 @@ struct App {
         if(!archive)return;
         auto *id=gtk_combo_box_get_active_id(GTK_COMBO_BOX(combo));if(!id)return;
         chosen=std::stoul(id);const auto &paint=paints.at(chosen);
-        selected.reset();edited=false;original={};art={};preview={};
+        selected.reset();edited=false;testArtwork=false;original={};art={};preview={};
         for(auto *widget:editing)gtk_widget_set_sensitive(widget,false);
         model=std::make_unique<Model>(decodeModel(asset(*archive,"graphics/vehicles/"+paint.car+"/lod0_livery.bdae")));
         if(addedDecals.count(chosen)) {
@@ -270,8 +278,8 @@ struct App {
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Paint"),false,false,0);
         combo=gtk_combo_box_text_new();gtk_box_pack_start(GTK_BOX(row),combo,false,false,0);g_signal_connect(combo,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);a.guard([&]{a.select();});}),this);
         auto *actions=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),actions,false,false,0);
-        editing.push_back(button(actions,"Import PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Import exact-size PNG artwork",GTK_FILE_CHOOSER_ACTION_OPEN);if(!p.empty())a.update(loadPNG(fs::u8path(p),a.selected->texture.width,a.selected->texture.height));}));
-        editing.push_back(button(actions,"Make test livery",this,[](App &a){require(bool(a.selected),"Open a game folder first");a.update(diagnostic(a.selected->texture));}));
+        editing.push_back(button(actions,"Import PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Import exact-size PNG artwork",GTK_FILE_CHOOSER_ACTION_OPEN);if(!p.empty()){a.testArtwork=false;a.update(loadPNG(fs::u8path(p),a.selected->texture.width,a.selected->texture.height));}}));
+        editing.push_back(button(actions,"Make test livery",this,[](App &a){require(bool(a.selected),"Open a game folder first");a.testArtwork=true;a.update(diagnostic(a.selected->texture));}));
         exportButton=button(actions,"Export mod",this,[](App &a){a.exportPackage();});gtk_widget_set_sensitive(exportButton,false);
         addDecalButton=button(actions,"Add PNG decal",this,[](App &a){a.addDecal();});gtk_widget_set_sensitive(addDecalButton,false);
         auto *paintGrid=gtk_grid_new();gtk_grid_set_column_spacing(GTK_GRID(paintGrid),12);gtk_grid_set_row_spacing(GTK_GRID(paintGrid),6);gtk_box_pack_start(GTK_BOX(box),paintGrid,false,false,0);
@@ -287,8 +295,8 @@ struct App {
         auto *row2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row2,false,false,0);
         mode=gtk_combo_box_text_new();for(auto *v:{"Painted + Livery","Car preview","Texture preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(mode),v);gtk_combo_box_set_active(GTK_COMBO_BOX(mode),0);gtk_box_pack_start(GTK_BOX(row2),mode,false,false,0);
         g_signal_connect(mode,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);auto *s=gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(a.mode));if(s){a.view=s;g_free(s);}gtk_widget_queue_draw(a.canvas);}),this);
-        editing.push_back(button(row2,"Save artwork PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Save editable artwork",GTK_FILE_CHOOSER_ACTION_SAVE,"artwork.png");if(!p.empty())savePNG(fs::u8path(p),a.art);}));
-        editing.push_back(button(row2,"Save UV template",this,[](App &a){auto p=a.choose("Save all-mesh UV0 template",GTK_FILE_CHOOSER_ACTION_SAVE,"uv-template.png");if(!p.empty())a.saveUV(p);}));
+        editing.push_back(button(row2,"Save artwork PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Save editable artwork",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName(a.testArtwork?"test":"livery").c_str());if(!p.empty())savePNG(fs::u8path(p),a.art);}));
+        editing.push_back(button(row2,"Save UV template",this,[](App &a){auto p=a.choose("Save all-mesh UV0 template",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName("uv").c_str());if(!p.empty())a.saveUV(p);}));
         auto *note=gtk_label_new("Drag the car to rotate • Scroll to zoom • Preview uses approximate lighting and decal blending");gtk_label_set_line_wrap(GTK_LABEL(note),true);gtk_box_pack_start(GTK_BOX(box),note,false,false,0);
         canvas=gtk_drawing_area_new();gtk_widget_set_size_request(canvas,320,320);gtk_box_pack_start(GTK_BOX(box),canvas,true,true,0);g_signal_connect(canvas,"draw",G_CALLBACK(+[](GtkWidget *w,cairo_t *cr,gpointer p)->gboolean{static_cast<App*>(p)->draw(cr,gtk_widget_get_allocated_width(w),gtk_widget_get_allocated_height(w));return FALSE;}),this);
         gtk_widget_add_events(canvas,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK|GDK_POINTER_MOTION_MASK|GDK_SCROLL_MASK|GDK_SMOOTH_SCROLL_MASK);

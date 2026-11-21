@@ -300,13 +300,16 @@ Drag the divider between the sidebar and preview to resize the viewport.
 
 - Choose a paint, then change its six body/highlight/wheel colors.
 - **Import PNG livery** adds or replaces artwork for that paint. Use the displayed
-  exact dimensions; **Save PNG / blank template** exports artwork or a transparent
-  template. Each edited paint gets an unused texture ID, preserving shared stock
-  or imported liveries. **Add livery template** creates a transparent decal with
-  cyan UV outlines for a paint that has none; export it with **Save PNG / blank
-  template**, use it as a guide layer, then import the finished livery over it.
-  **Remove livery** clears the decal. **Reset paint and livery** restores that paint's imported
-  appearance.
+  exact dimensions. **Save PNG / blank template** suggests `<car>-livery.png` for
+  an existing livery, `<car>-template.png` for a blank or template paint, and
+  `<car>-test.png` after **Make test livery**. **Save UV template** suggests
+  `<car>-uv.png`. The base name is the in-game car name, lowercased with spaces
+  and punctuation replaced by hyphens. Each edited paint gets an unused texture
+  ID, preserving shared stock or imported liveries. **Add livery template**
+  creates a transparent decal with cyan UV outlines for a paint that has none;
+  export it with **Save PNG / blank template**, use it as a guide layer, then
+  import the finished livery over it. **Remove livery** clears the decal.
+  **Reset paint and livery** restores that paint's imported appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
   names**. This updates the US and GB English localized strings while retaining
   internal IDs.
