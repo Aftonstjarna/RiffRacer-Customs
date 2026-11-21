@@ -489,11 +489,13 @@ GLB contains author, licence or source metadata, the package also includes an
 garage selection box to the imported wheel width and body length/height.
 
 **Add as a new car** uses the authored three-letter ID from the import dialog
-(default: the donor ID). It must have a stock name token, for example `dod`; the
-ReRiff composer remaps it to the next free native slot and keeps its assets,
-paint table, origin mapping and name namespace separate. The composer allows at
-most nine paint packs per car; the extra paint is added only when the donor is
-below that limit.
+(default: the donor ID). Any three lowercase letters or digits work, for example
+`spn`; the importer adds a matching `car_<id>` name token for every locale in
+the exported package and leaves the stock archive untouched. Paint names still
+reuse existing stock paint tokens. The ReRiff composer remaps the authored ID to
+the next free native slot and keeps its assets, paint table, origin mapping and
+name namespace separate. The composer allows at most nine paint packs per car;
+the extra paint is added only when the donor is below that limit.
 
 The donor's driving setup and animation are retained. Use the placement editor
 for HUD/NOS adjustments; collision, glow, clipping, paint slots, wheel animation,
