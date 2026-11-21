@@ -300,9 +300,10 @@ controls and guides only when requested; turn it off to return to paint preview.
 - **Import PNG livery** adds or replaces artwork for that paint. Use the displayed
   exact dimensions; **Save PNG / blank template** exports artwork or a transparent
   template. Each edited paint gets an unused texture ID, preserving shared stock
-  or imported liveries. **Add clear PNG livery** creates a transparent decal for
-  a paint that has none, so **Import PNG livery** can fill it; **Remove livery**
-  clears the decal. **Reset paint and livery** restores that paint's imported
+  or imported liveries. **Add livery template** creates a transparent decal with
+  cyan UV outlines for a paint that has none; export it with **Save PNG / blank
+  template**, use it as a guide layer, then import the finished livery over it.
+  **Remove livery** clears the decal. **Reset paint and livery** restores that paint's imported
   appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
   names**. This updates the US and GB English localized strings while retaining
@@ -377,7 +378,7 @@ different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
-The sidebar also includes **Add clear PNG livery**, **Make test livery**, and
+The sidebar also includes **Add livery template**, **Make test livery**, and
 **Save UV template**, alongside paint colors, names, defaults, PNG import/save
 and reset.
 The preview selector sits between **Paint** and **Adjust HUD / boosters** in the
