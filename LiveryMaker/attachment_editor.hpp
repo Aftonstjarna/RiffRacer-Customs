@@ -87,12 +87,12 @@ class AttachmentEditor {
     }
     void refreshUnlock(){
         if(!unlockMode_||currentCar_.empty())return;
-        bool supported=unlocks_->supports(currentCar_);auto v=supported?unlocks_->get(currentCar_):Json::object();
+        unlocks_->ensure(currentCar_);bool supported=unlocks_->supports(currentCar_);auto v=supported?unlocks_->get(currentCar_):Json::object();
         gtk_widget_set_sensitive(unlockMode_,supported);gtk_combo_box_set_active_id(GTK_COMBO_BOX(unlockMode_),UnlockConfig::mode(v).c_str());gtk_spin_button_set_value(GTK_SPIN_BUTTON(carPrice_),v.value("purchaseUnlock",1000));
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(packPrice_),colors_->price(paintSelection()));gtk_entry_set_text(GTK_ENTRY(unlockArtist_),v.value("artistUnlock",std::string()).c_str());gtk_entry_set_text(GTK_ENTRY(unlockTitle_),v.value("songUnlock",std::string()).c_str());unlockSensitivity();
     }
     void applyUnlock(){
-        auto id=gtk_combo_box_get_active_id(GTK_COMBO_BOX(unlockMode_));std::string mode=id?id:"original";
+        auto id=gtk_combo_box_get_active_id(GTK_COMBO_BOX(unlockMode_));std::string mode=id?id:"original";unlocks_->ensure(currentCar_);
         if(unlocks_->supports(currentCar_)&&mode!="original")unlocks_->set(currentCar_,mode,gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(carPrice_)),gtk_entry_get_text(GTK_ENTRY(unlockArtist_)),gtk_entry_get_text(GTK_ENTRY(unlockTitle_)));
         colors_->setPrice(paintSelection(),gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(packPrice_)));markEdited();refreshUnlock();message("Unlock and prices updated. Export a copy to save; restart the game after installing it.");
     }
@@ -106,7 +106,7 @@ class AttachmentEditor {
         label("Selected paint / livery price");packPrice_=gtk_spin_button_new_with_range(0,10000000,100);gtk_box_pack_start(GTK_BOX(box),packPrice_,false,false,0);
         unlockInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(unlockInfo_),true);gtk_label_set_max_width_chars(GTK_LABEL(unlockInfo_),32);gtk_box_pack_start(GTK_BOX(box),unlockInfo_,false,false,0);
         unlockApply_=gtk_button_new_with_label("Apply unlock and prices");gtk_box_pack_start(GTK_BOX(box),unlockApply_,false,false,0);g_signal_connect(unlockApply_,"clicked",G_CALLBACK(+[](GtkButton*,gpointer data){auto&a=*static_cast<AttachmentEditor*>(data);a.guard([&]{a.applyUnlock();});}),this);
-        auto*reset=gtk_button_new_with_label("Restore imported unlock");gtk_box_pack_start(GTK_BOX(box),reset,false,false,0);g_signal_connect(reset,"clicked",G_CALLBACK(+[](GtkButton*,gpointer data){auto&a=*static_cast<AttachmentEditor*>(data);a.guard([&]{if(a.unlocks_->supports(a.currentCar_)){a.unlocks_->reset(a.currentCar_);a.markEdited();a.refreshUnlock();}});}),this);
+        auto*reset=gtk_button_new_with_label("Restore imported unlock");gtk_box_pack_start(GTK_BOX(box),reset,false,false,0);g_signal_connect(reset,"clicked",G_CALLBACK(+[](GtkButton*,gpointer data){auto&a=*static_cast<AttachmentEditor*>(data);a.guard([&]{a.unlocks_->ensure(a.currentCar_);if(a.unlocks_->supports(a.currentCar_)){a.unlocks_->reset(a.currentCar_);a.markEdited();a.refreshUnlock();}});}),this);
         g_signal_connect(unlockMode_,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer data){static_cast<AttachmentEditor*>(data)->unlockSensitivity();}),this);
     }
 

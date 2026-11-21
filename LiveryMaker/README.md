@@ -511,10 +511,12 @@ garage selection box to the imported wheel width and body length/height.
 **Add as a new car** uses the authored three-letter ID from the import dialog
 (default: the donor ID). Any three lowercase letters or digits work, for example
 `spn`; the importer adds a matching `car_<id>` name token for every locale in
-the exported package and leaves the stock archive untouched. Donor paint packs
-that use a livery have their decal assets copied and renamed under the authored
-ID, with the cloned paint table remapped to them. Paint names still reuse
-existing stock paint tokens. The ReRiff composer remaps the authored ID to the
+the exported package and leaves the stock archive untouched. Custom cars get
+their own unlock slot, so the Paint tab can set available/play/shop/artist
+rules and the car price; the donor's unlock rule is used as the starting point.
+Donor paint packs that use a livery have their decal assets copied and renamed
+under the authored ID, with the cloned paint table remapped to them. Paint names
+still reuse existing stock paint tokens. The ReRiff composer remaps the authored ID to the
 next free native slot and keeps its assets, paint table, origin mapping and name
 namespace separate. The composer allows at most nine paint packs per car;
 the optional imported-body paint uses a free slot when available and otherwise

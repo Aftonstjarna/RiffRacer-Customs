@@ -39,7 +39,7 @@ $(OUT)/test-surface-snap$(EXEEXT): test_surface_snap.cpp surface_snap.hpp mod_ed
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test_surface_snap.cpp -o $@ $(LIBS) $(LDFLAGS)
 
-$(OUT)/test-model-import$(EXEEXT): test_model_import.cpp model_import.hpp texture_encode.hpp mod_editor.hpp mod_names.hpp mod_appearance.hpp core.hpp paint.hpp
+$(OUT)/test-model-import$(EXEEXT): test_model_import.cpp model_import.hpp texture_encode.hpp mod_editor.hpp mod_names.hpp mod_appearance.hpp economy.hpp core.hpp paint.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test_model_import.cpp -o $@ $(LIBS) $(LDFLAGS)
 
