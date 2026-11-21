@@ -484,12 +484,12 @@ effect materials and activation remain; the projected fade is experimental.
 
 **Use a neutral body paint mask** (default on) replaces `carpaint_occspec` with a
 uniform 512² yellow DXT1 texture, removing the donor's occlusion/livery pattern.
-**Add imported-body paint** is off by default. When enabled, it clones the
-darkest donor paint, clears its decal, sets its price to 1 and appends it to
-`paint.cfg`, `paint_PC.cfg` and the 32-bit paint Lua. It reuses an unused stock
-paint-name token and renames that token to the entered name. If the donor already
-has nine paints, the new paint replaces the donor's default paint pack instead
-of opening a new slot. The 64-bit Lua is unchanged.
+**Add imported-body paint** is enabled by default and appears in the Simple view.
+It clones the darkest donor paint, clears its decal, sets its price to 1 and
+appends it to `paint.cfg`, `paint_PC.cfg` and the 32-bit paint Lua. It reuses an
+unused stock paint-name token and renames that token to the entered name. If the
+donor already has nine paints, the new paint replaces the donor's default paint
+pack instead of opening a new slot. The 64-bit Lua is unchanged.
 
 **Apply names to all languages** (default on) writes the car and extra-paint
 names into all eight string banks; turn it off to update only US and GB. When the
