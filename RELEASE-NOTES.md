@@ -1,3 +1,34 @@
+# RiffRacer Customs 0.3.2
+
+## In-game summary
+
+- Custom imported cars now expose unlock and car-price options.
+- Custom cars inherit their donor's unlock rule by default.
+- The program and docs now use the Riff Racer Customs name.
+
+## Full release notes
+
+- Add a native unlock slot for a custom authored car when the imported unlock
+  table has no entry. The donor's unlock rule is copied when available;
+  otherwise the car defaults to available from start.
+- Patch both the unlock CFG and Lua with the new car name and unlock entry, so
+  **Car unlock**, **Car price**, **Artist contains** and **Title contains**
+  remain editable and survive export/reimport.
+- Use **Riff Racer Customs** as the program, window, update-dialog, documentation
+  and desktop-entry display name. The GitHub repository, release URLs and
+  artifact filenames remain `RiffRacer-Customs`.
+- Keep the 0.3.1 standalone paint/livery mod export and include-paint checkbox.
+
+Validation: the owner import test creates a custom car, adds a shop unlock and
+price, exports/reimports it, and checks both unlock CFG and Lua changes. Unit
+and import tests pass; Windows, Linux and AnyLinux packages are built and
+smoke-tested.
+
+Limitations: unlock order and car availability still depend on the ReRiff
+composer registering the custom car slot. Verify the car and its price in game.
+
+---
+
 # RiffRacer Customs 0.3.1
 
 ## In-game summary
