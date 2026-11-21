@@ -1,3 +1,40 @@
+# RiffRacer Customs 0.3.0-beta.8
+
+## In-game summary
+
+- Use any custom three-letter car ID when adding a model.
+- Import models in a simple view with advanced options on demand.
+- Import controls wrap cleanly without a horizontal scrollbar.
+
+## Full release notes
+
+- Allow **Add as a new car** to use any three-letter authored ID, such as `spn`.
+  The importer writes a matching `car_<id>` token for all eight locales into the
+  exported package. The stock archive and its `tokens.dat` stay untouched, and
+  paint names still reuse existing stock paint tokens.
+- Add a **Simple** import view with car name, auto-selected donor, export mode,
+  generated car ID and detail level. **Add as a new car** is the default and
+  leaves the stock car unchanged. The car name is prefilled from GLB metadata.
+- Move scale, orientation, Z-up, donor ranking, authored ID, fitting, collision,
+  effects, paint mask/slot, shadow, materials and part roles behind **Show
+  advanced options**. Part roles are collapsed into **Review part roles**.
+- **Create mod and edit** now previews automatically when settings changed, so a
+  separate Preview step is not required. The import controls also use wrapped
+  labels and no horizontal scrollbar.
+- Keep the beta.7 livery template, sidebar tabs, placement shortcuts, meter
+  selector and release validation work.
+
+Validation: automated tests cover custom car IDs and locale tokens, generated
+IDs, Simple/Advanced switching, advanced visibility, preview invalidation and
+automatic export preparation. Import dialogs and advanced options are captured
+for review. Windows, Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: persisted import preferences and per-field inline validation are
+not implemented yet. The livery template remains a guide only, and curvature
+following remains a local normal average.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.7
 
 ## In-game summary
