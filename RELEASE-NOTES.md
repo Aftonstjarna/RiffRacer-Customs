@@ -1,3 +1,33 @@
+# RiffRacer Customs 0.3.0-beta.10
+
+## In-game summary
+
+- Decorated donor paints now work on custom car IDs.
+- Donor decals are copied and renamed for the new car automatically.
+- Missing decals clear the livery instead of failing the import.
+
+## Full release notes
+
+- Copy every donor decal referenced by a cloned paint table into the exported
+  package under the authored car ID, for example `hon_02` → `spn_02`.
+- Rename each decal's internal texture to the new ID and remap the cloned paint
+  table's livery IDs in both paint CFGs and the 32-bit paint Lua.
+- If a referenced donor decal cannot be copied, clear that paint's livery
+  reference instead of leaving a missing asset that breaks paint selection.
+- Keep the beta.9 imported-body paint, nine-pack fallback, custom paint-table
+  cloning, selectable errors and Simple/Advanced importer work.
+
+Validation: the model-import smoke creates a custom `spn` car from a decorated
+donor, verifies the copied decals and remapped paint table, and opens every
+decorated paint through the editor appearance model. Unit, import and packaging
+tests pass; Windows, Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: copied donor decals use the imported model's UV layout, so their
+placement may differ from the donor and should be checked in game. Persisted
+import preferences and field-level validation remain follow-ups.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.9
 
 ## In-game summary
