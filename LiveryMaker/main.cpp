@@ -1,4 +1,5 @@
 #include "attachment_editor.hpp"
+#include "merge_livery.hpp"
 #include <gtk/gtk.h>
 #include <memory>
 using namespace livery;
@@ -99,6 +100,13 @@ struct App {
         if(paints.empty()||chosen>=paints.size())return std::string("car-")+kind+".png";
         auto &paint=paints.at(chosen);auto base=exportSlug(paint.carName,paint.car);
         if(std::string(kind)=="livery"&&!paint.paintName.empty()){auto name=exportSlug(paint.paintName,"");if(!name.empty())base+="-"+name;}return base+"-"+kind+".png";
+    }
+    void mergeLiveryModsDialog(){
+        require(bool(archive),"Open a game folder first");std::vector<fs::path> folders;
+        for(;;){auto path=choose("Choose a livery-only mod folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(path.empty())break;folders.push_back(fs::u8path(path));auto *q=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Add another livery mod?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer!=GTK_RESPONSE_YES)break;}
+        require(folders.size()>=2,"Choose at least two livery mods");auto out=choose("Choose a new folder for the merged livery mod",GTK_FILE_CHOOSER_ACTION_SAVE,"merged-livery-mod");if(out.empty())return;
+        auto merged=mergeLiveryMods(*archive,folders);publishPaintMod(merged.files,merged.metadata,fs::u8path(out));
+        message("Merged livery mod: "+out+". Remove or disable the original livery mods; install only this merged folder.");
     }
     void rebuildCarTemplate(){
         require(bool(archive),"Open a game folder first");
@@ -286,6 +294,7 @@ struct App {
         button(imports,"Import mod folder",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose mod folder containing assets",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
         button(imports,"Import mod ZIP",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose loose mod ZIP",GTK_FILE_CHOOSER_ACTION_OPEN);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
         auto *rebuild=button(imports,"Rebuild car from template",this,[](App &a){a.rebuildCarTemplate();});gtk_widget_set_tooltip_text(rebuild,"Rebuild a saved car template at a new quality. You will choose the source GLB and the editor verifies its hash.");
+        auto *merge=button(imports,"Merge livery mods",this,[](App &a){a.mergeLiveryModsDialog();});gtk_widget_set_tooltip_text(merge,"Combine livery-only mods that target different paints of the same car into one conflict-free package.");
         auto *row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row,false,false,0);
         button(row,"Open game folder",this,[](App &a){auto p=a.choose("Game folder containing vfs.zip",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!p.empty())a.load(p);});
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Car"),false,false,0);

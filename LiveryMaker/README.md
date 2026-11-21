@@ -522,6 +522,17 @@ namespace separate. The composer allows at most nine paint packs per car;
 the optional imported-body paint uses a free slot when available and otherwise
 replaces the default pack.
 
+### Merging livery-only mods
+
+Livery-only mods that assign a new decal to different paints each contain the
+full paint configuration, so installing two independently makes the later
+config replace the earlier one. Use **Merge livery mods** in the main window,
+choose each livery-only mod folder, then choose a new output folder. The merge
+takes each mod's selected paint pack and decal, rebuilds one paint config/Lua
+from the stock tables, and combines the string and decal assets into a single
+`assets/` plus `livery-maker.json` package. Disable or remove the original
+livery mods and install only the merged package.
+
 ### Complete car templates
 
 Use **Save car template…** in the Paint tab to store the current car's import
