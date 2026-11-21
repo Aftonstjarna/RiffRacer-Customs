@@ -293,8 +293,10 @@ is an undo step, so Ctrl+Z restores the pre-reset placement.
 
 ### Imported paints, liveries, names and defaults
 
-Import opens the paint/livery editor. **Adjust HUD / boosters** opens placement
-controls and guides only when requested; turn it off to return to paint preview.
+Import opens the paint/livery editor. The sidebar has **Paint**, **Livery** and
+**HUD** tabs. Switching to **HUD** shows attachment placement controls and guides;
+switching to Paint or Livery applies the open adjustment and hides the guides.
+Drag the divider between the sidebar and preview to resize the viewport.
 
 - Choose a paint, then change its six body/highlight/wheel colors.
 - **Import PNG livery** adds or replaces artwork for that paint. Use the displayed
@@ -378,12 +380,12 @@ different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
-The sidebar also includes **Add livery template**, **Make test livery**, and
-**Save UV template**, alongside paint colors, names, defaults, PNG import/save
-and reset.
-The preview selector sits between **Paint** and **Adjust HUD / boosters** in the
-toolbar and supports Painted + Livery, Car preview, Texture preview, Original
-artwork, and UV template. Placement stays behind Adjust HUD / boosters.
+The **Livery** tab includes **Add livery template**, **Make test livery**, and
+**Save UV template**, alongside PNG import/save and remove. The **Paint** tab
+holds colors, names, prices and defaults.
+The preview selector sits between **Paint** and the export mode in the toolbar
+and supports Painted + Livery, Car preview, Texture preview, Original artwork,
+and UV template. Placement controls are in the **HUD** tab.
 **Export mod** writes the current stock edits or the combined imported-mod edits.
 
 **Updates…** opens the update window. Stable is the default channel
@@ -518,7 +520,7 @@ no-overwrite behavior. Offline conversion success is not an in-game rendering cl
 
 ### HUD artwork styles
 
-Under **Adjust HUD / boosters**, **Multiplier brackets** chooses **Four brackets**
+Under the **HUD** tab, **Multiplier brackets** chooses **Four brackets**
 or **Two top brackets (Pulse)**. **Boost meter shape** lists every distinct native
 stock meter artwork, labelled by its source car. Small previews show the selected
 multiplier and meter. These choices apply to the selected car across all paints;
@@ -541,8 +543,8 @@ build/livery-maker/test-multiplier GAME_FOLDER
 **Show car HUD** is enabled by default in car preview modes. It draws a static
 ×4 multiplier and 70% boost meter from the current car's HUD atlas, using the
 current attachment position, rotation and scale. Changing either style updates
-this preview immediately. Turning placement controls off removes the guides but
-keeps the HUD artwork visible. Uncheck Show car HUD for a clean car view.
+this preview immediately. Leaving the HUD tab removes the guides but keeps the
+HUD artwork visible. Uncheck Show car HUD for a clean car view.
 The HUD is depth-tested against the car to expose clipping. Track tint, gameplay
 visibility and animated glow are not simulated; confirm the final result in game.
 
