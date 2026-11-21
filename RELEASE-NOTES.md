@@ -1,3 +1,41 @@
+# RiffRacer Customs 0.3.4-beta.2
+
+## In-game summary
+
+- Merge livery mods that paint different packs of the same car.
+- One combined paint config keeps both decals and paint names.
+- Install only the merged package and remove the original mods.
+
+## Full release notes
+
+- Add **Merge livery mods** in the main window. Livery-only packages each
+  contain a complete paint configuration, so installing two of them makes the
+  later mod replace the earlier paint assignment. Choose two or more
+  livery-only mod folders and a new output folder; the merge keeps every
+  mod's selected paint pack and decal in one conflict-free package.
+- The merge rebuilds one paint configuration and Lua file from the stock
+  tables, copies the decal and name resources, and writes
+  `assets/` plus `livery-maker.json` with a `merged_from` record of the input
+  folders.
+- The merge refuses two mods that target the same car paint, and refuses a
+  resource whose hash does not match its `livery-maker.json` entry.
+- Disable or remove the original livery mods and install only the merged
+  folder, otherwise their full configurations still conflict.
+- Includes the complete car templates from 0.3.4-beta.1: save a car's import
+  recipe and appearance, then rebuild it at another quality by choosing the
+  source GLB, which the editor verifies against the saved hash.
+
+Validation: the merge was verified with two Pulse livery mods, producing one
+package with the Arctic decal on pack 1 and the Kazuho decal on pack 2. Package
+reimport resolves both paint assignments, names and decals. Windows, Linux and
+AnyLinux packages are built and smoke-tested.
+
+Limitations: merging expects livery-only packages created by Riff Racer
+Customs that select different car paints. It does not merge arbitrary config
+mods, and it does not modify the original mod folders.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.1
 
 ## In-game summary
