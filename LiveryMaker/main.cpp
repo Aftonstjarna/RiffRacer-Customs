@@ -90,14 +90,16 @@ struct App {
         if(suggest)gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),suggest);
         std::string p;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *s=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));p=s;g_free(s);}gtk_widget_destroy(d);return p;
     }
-    std::string exportBaseName() const {
-        if(paints.empty()||chosen>=paints.size())return "car";
-        auto name=paints.at(chosen).carName;std::string base;
-        for(unsigned char c:name){if(std::isalnum(c))base.push_back(char(std::tolower(c)));else if(!base.empty()&&base.back()!='-')base.push_back('-');}
+    static std::string exportSlug(const std::string &name,const std::string &fallback){
+        std::string base;for(unsigned char c:name){if(std::isalnum(c))base.push_back(char(std::tolower(c)));else if(!base.empty()&&base.back()!='-')base.push_back('-');}
         while(!base.empty()&&base.back()=='-')base.pop_back();
-        return base.empty()?paints.at(chosen).car:base;
+        return base.empty()?fallback:base;
     }
-    std::string exportFileName(const char *kind) const {return exportBaseName()+"-"+kind+".png";}
+    std::string exportFileName(const char *kind) const {
+        if(paints.empty()||chosen>=paints.size())return std::string("car-")+kind+".png";
+        auto &paint=paints.at(chosen);auto base=exportSlug(paint.carName,paint.car);
+        if(std::string(kind)=="livery"&&!paint.paintName.empty()){auto name=exportSlug(paint.paintName,"");if(!name.empty())base+="-"+name;}return base+"-"+kind+".png";
+    }
     void load(const std::string &p,bool persist=true) {
         auto next=std::make_unique<Archive>((fs::u8path(p)/"vfs.zip").u8string());
         auto labels=displayNames(*next);auto selections=paintSelections(*next,labels);

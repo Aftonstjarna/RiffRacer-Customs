@@ -122,13 +122,15 @@ class AttachmentEditor {
         gtk_label_set_text(GTK_LABEL(liveryInfo_),text.c_str());gtk_widget_queue_draw(canvas_);
     }
     static std::string paintKey(const PaintSelection &p){return p.car+"/"+std::to_string(p.packIndex);}
-    std::string exportBaseName(const PaintSelection &p) const {
-        auto name=localized(labels_,"car_"+p.car);std::string base;
-        for(unsigned char c:name){if(std::isalnum(c))base.push_back(char(std::tolower(c)));else if(!base.empty()&&base.back()!='-')base.push_back('-');}
+    static std::string exportSlug(const std::string &name,const std::string &fallback){
+        std::string base;for(unsigned char c:name){if(std::isalnum(c))base.push_back(char(std::tolower(c)));else if(!base.empty()&&base.back()!='-')base.push_back('-');}
         while(!base.empty()&&base.back()=='-')base.pop_back();
-        return base.empty()?p.car:base;
+        return base.empty()?fallback:base;
     }
-    std::string exportFileName(const PaintSelection &p,const std::string &kind) const {return exportBaseName(p)+"-"+kind+".png";}
+    std::string exportBaseName(const PaintSelection &p) const {return exportSlug(localized(labels_,"car_"+p.car),p.car);}
+    std::string exportFileName(const PaintSelection &p,const std::string &kind) const {
+        auto base=exportBaseName(p);if(kind=="livery"&&!p.paintName.empty()){auto paint=exportSlug(p.paintName,"");if(!paint.empty())base+="-"+paint;}return base+"-"+kind+".png";
+    }
     std::string chooseArtwork(bool save,const std::string &suggested={}){
         auto *d=gtk_file_chooser_dialog_new(save?"Save livery PNG":"Import exact-size livery PNG",GTK_WINDOW(dialog_),save?GTK_FILE_CHOOSER_ACTION_SAVE:GTK_FILE_CHOOSER_ACTION_OPEN,"Cancel",GTK_RESPONSE_CANCEL,save?"Save":"Import",GTK_RESPONSE_ACCEPT,nullptr);
         gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(d),true);if(save)gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),suggested.empty()?"livery.png":suggested.c_str());
@@ -602,7 +604,7 @@ public:
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(unlockMode_),"artist-title");require(!gtk_widget_get_sensitive(carPrice_)&&gtk_widget_get_sensitive(unlockTitle_),"Music unlock field sensitivity");
         gtk_entry_set_text(GTK_ENTRY(unlockArtist_),"GUI Artist");gtk_entry_set_text(GTK_ENTRY(unlockTitle_),"GUI Title");gtk_spin_button_set_value(GTK_SPIN_BUTTON(packPrice_),321);gtk_button_clicked(GTK_BUTTON(unlockApply_));require(unlocks_->get("alf").value("songUnlock",std::string())=="GUI Title"&&colors_->price(paintSelection())==321,"Unlock/price button did not apply");
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"bui");require(gtk_widget_get_sensitive(carPrice_)&&!gtk_widget_get_sensitive(unlockTitle_),"Shop price field sensitivity");gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"alf");require(std::string(gtk_entry_get_text(GTK_ENTRY(unlockTitle_)))=="GUI Title"&&gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(packPrice_))==321,"Switching cars lost unlock/price edits");
-        auto p=paintSelection();require(p.car=="alf","Stock car selection failed");require(exportFileName(p,"uv")=="pulse-uv.png"&&exportFileName(p,"template")=="pulse-template.png"&&exportFileName(p,"test")=="pulse-test.png","Car-name export filenames failed");auto source=appearance_->imageTemplate(p);
+        auto p=paintSelection();require(p.car=="alf","Stock car selection failed");require(exportFileName(p,"uv")=="pulse-uv.png"&&exportFileName(p,"template")=="pulse-template.png"&&exportFileName(p,"test")=="pulse-test.png"&&exportFileName(p,"livery")=="pulse-arctic-livery.png","Car-name export filenames failed");auto source=appearance_->imageTemplate(p);
         if(!appearance_->decal(p)){require(gtk_widget_get_sensitive(addDecalButton_),"Clear livery action disabled");gtk_button_clicked(GTK_BUTTON(addDecalButton_));require(bool(appearance_->decal(p)),"Clear livery guide not created");auto guide=decodeDDS(appearance_->decal(p)->texture);size_t clearPixels=0,inkPixels=0;bool cyan=false;for(size_t i=0;i<guide.pixels.size();i+=4){if(guide.pixels[i+3]==0){clearPixels++;continue;}inkPixels++;if(guide.pixels[i+2]>guide.pixels[i]+40&&guide.pixels[i+1]>guide.pixels[i]+40)cyan=true;}savePNG(out/"clear-livery-guide.png",guide);require(clearPixels>inkPixels&&inkPixels>0&&cyan,"Livery template is missing its transparent layer or UV outlines");}
         appearance_->importPNG(p,diagnostic(source.texture));colors_->set(p,"col0",{25,50,75});refreshPaint();
         gtk_combo_box_set_active(GTK_COMBO_BOX(car_),1);gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),p.car.c_str());require(colors_->get(p,"col0",3)==std::vector<float>({25,50,75})&&appearance_->decal(p),"Switching stock cars lost edits");
