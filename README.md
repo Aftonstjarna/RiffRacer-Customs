@@ -1,4 +1,4 @@
-# RiffRacer Customs
+# Riff Racer Customs
 
 A graphical car, paint, PNG livery and HUD editor for Riff Racer, for Windows and Linux.
 It is a separate authoring tool, not part of the ReRiff client/server packages.
