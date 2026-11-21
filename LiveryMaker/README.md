@@ -384,9 +384,14 @@ different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
-The **Livery** tab includes **Add livery template**, **Make test livery**, and
-**Save UV template**, alongside PNG import/save and remove. The **Paint** tab
-holds colors, names, prices and defaults.
+The **Livery** tab includes **Add livery template**, **Make test livery**,
+**Save UV template**, and **Export paint/livery mod**, alongside PNG
+import/save and remove. The paint-mod export writes a standalone package
+containing only the selected livery texture and, when **Include paint
+configuration** is checked, the paint configuration and names. It uses the
+`assets/` plus `livery-maker.json` format without `origin.txt` or a runtime
+cache; choose a different folder or replace a previous owned export. The
+**Paint** tab holds colors, names, prices and defaults.
 The preview selector sits between **Paint** and the export mode in the toolbar
 and supports Painted + Livery, Car preview, Texture preview, Original artwork,
 and UV template. Placement controls are in the **HUD** tab.

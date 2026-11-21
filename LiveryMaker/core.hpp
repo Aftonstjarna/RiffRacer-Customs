@@ -570,18 +570,20 @@ inline Bytes originText(const std::map<std::string,Bytes> &files,const std::stri
     // Start with the conventional section order for new packages.
     auto text="[mod]\nid="+packageId+"\noverwrite=1\n\n[origins]\n";Origin origin(Bytes(text.begin(),text.end()),packageId);origin.complete(files);return origin.bytes();
 }
-inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Bytes *explicitOrigins=nullptr) {
+inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Bytes *explicitOrigins=nullptr,bool includeOrigin=true) {
     auto dest=safePath(fs::absolute(destination));
     require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
     Bytes origins;
     if(fs::exists(dest)) {
         verifyOwnedMod(dest);
         // Keep all declared policy, identity, mappings and comments byte-for-byte.
-        if(fs::is_regular_file(dest/"origin.txt"))origins=read((dest/"origin.txt").u8string());
+        if(includeOrigin&&fs::is_regular_file(dest/"origin.txt"))origins=read((dest/"origin.txt").u8string());
     }
-    if(explicitOrigins)origins=*explicitOrigins;
-    if(origins.empty()&&!explicitOrigins&&!fs::exists(dest/"origin.txt"))origins=originText(files);
-    Origin declaration(origins);declaration.complete(files);origins=declaration.bytes();
+    if(includeOrigin) {
+        if(explicitOrigins)origins=*explicitOrigins;
+        if(origins.empty()&&!explicitOrigins&&!fs::exists(dest/"origin.txt"))origins=originText(files);
+        Origin declaration(origins);declaration.complete(files);origins=declaration.bytes();
+    }
     require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
     for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
     metadata["tool"]="reriff-livery-maker-v2";metadata["format"]="loose-v1";
@@ -596,7 +598,7 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     bool moved=false;
     try {
         for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
-        write(stage/"origin.txt",origins);metadata["origin_sha256"]=sha(origins);
+        if(includeOrigin){write(stage/"origin.txt",origins);metadata["origin_sha256"]=sha(origins);}
         save(stage/"livery-maker.json",metadata);verifyOwnedMod(stage);
         if(fs::exists(dest)) {fs::rename(dest,backup);moved=true;}
         fs::rename(stage,dest);if(moved)fs::remove_all(backup);
@@ -604,6 +606,30 @@ inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,co
     return metadata;
 }
 inline Json publishMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination,const Origin &origin) {auto completed=origin;completed.complete(files);return publishMod(files,std::move(metadata),destination,&completed.bytes());}
+inline Json publishPaintMod(const std::map<std::string,Bytes> &files,Json metadata,const fs::path &destination) {
+    auto dest=safePath(fs::absolute(destination));
+    require(!dest.filename().u8string().empty() && dest.filename().u8string().front()!='.',"Choose a non-hidden mod folder");
+    require(!files.empty() && files.size()<0x3fff,"Invalid resource count");
+    for(const auto &entry:files){resourcePath(entry.first);require(entry.second.size()<256*1024*1024,"Resource too large");}
+    if(fs::exists(dest)) {
+        require(fs::is_directory(dest)&&!isOutputLink(dest),"Output is not a real directory");
+        require(!isOutputLink(dest/"livery-maker.json")&&fs::is_regular_file(dest/"livery-maker.json"),"Refusing to overwrite an unrelated folder");
+        auto owner=loadJson(dest/"livery-maker.json");require(owner.value("tool","")=="reriff-livery-maker-v1","Refusing to overwrite a non-paint mod folder");require(!fs::exists(dest/"vfs.dat")&&!fs::exists(dest/"vfs.zip"),"Refusing to overwrite a full mod package");
+    }
+    metadata["tool"]="reriff-livery-maker-v1";metadata.erase("format");metadata.erase("dat_sha256");metadata.erase("zip_sha256");
+    metadata["resources"]=Json::array();metadata["sibling_resource_conflicts"]=Json::array();
+    for(const auto &entry:files){metadata["resources"].push_back({{"path",entry.first},{"sha256",sha(entry.second)}});for(const auto &conflict:conflicts(dest.parent_path(),dest,entry.first))metadata["sibling_resource_conflicts"].push_back(conflict);}
+    fs::create_directories(dest.parent_path());auto stage=dest;stage+=".staging-"+std::to_string(processId());auto backup=dest;backup+=".previous-"+std::to_string(processId());
+    require(!fs::exists(stage)&&!fs::exists(backup),"Staging path already exists");require(fs::create_directory(stage),"Cannot create staging folder");
+    bool moved=false;
+    try {
+        for(const auto &entry:files){auto path=stage/"assets"/fs::u8path(entry.first);fs::create_directories(path.parent_path());write(path,entry.second);}
+        save(stage/"livery-maker.json",metadata);
+        if(fs::exists(dest)){fs::rename(dest,backup);moved=true;}
+        fs::rename(stage,dest);if(moved)fs::remove_all(backup);
+    } catch(...) { if(moved&&!fs::exists(dest))fs::rename(backup,dest);fs::remove_all(stage);throw; }
+    return metadata;
+}
 inline Bytes editedBatch(const Target &t,const Image *image) {
     Bytes batch=t.batch;
     if(image){auto dds=encodeDDS(t.texture,*image);size_t offset=u32(batch,12)+u32(batch,32);require(dds.size()==u32(batch,36),"DDS size changed");std::copy(dds.begin(),dds.end(),batch.begin()+offset);}
