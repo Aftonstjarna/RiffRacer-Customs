@@ -265,7 +265,7 @@ struct App {
         return b;
     }
     void build() {
-        window=gtk_window_new(GTK_WINDOW_TOPLEVEL);gtk_window_set_title(GTK_WINDOW(window),"RiffRacer Customs");gtk_window_set_default_size(GTK_WINDOW(window),1000,820);
+        window=gtk_window_new(GTK_WINDOW_TOPLEVEL);gtk_window_set_title(GTK_WINDOW(window),"Riff Racer Customs");gtk_window_set_default_size(GTK_WINDOW(window),1000,820);
         g_signal_connect(window,"destroy",G_CALLBACK(gtk_main_quit),nullptr);
         auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(box),14);gtk_container_add(GTK_CONTAINER(window),box);
         auto *title=gtk_label_new("Edit car paints and liveries");gtk_box_pack_start(GTK_BOX(box),title,false,false,0);

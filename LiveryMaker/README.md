@@ -1,4 +1,4 @@
-# RiffRacer Customs editor guide
+# Riff Racer Customs editor guide
 
 A C++17/GTK3 authoring tool for replacing existing vehicle decals. It reuses
 `NativeLinux/native_assets.hpp` for TABT, DDS, model UVs and PNG output. It exports loose native assets; ReRiff builds its VFS cache locally.

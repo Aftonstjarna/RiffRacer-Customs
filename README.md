@@ -1,4 +1,4 @@
-# RiffRacer Customs
+# Riff Racer Customs
 
 A graphical car, paint, PNG livery and HUD editor for Riff Racer, for Windows and Linux.
 It is a separate authoring tool, not part of the ReRiff client/server packages.
@@ -30,7 +30,7 @@ FUSE is unavailable. It requires an x86-64 Linux desktop (X11 or Wayland).
 
 ## Updates
 
-RiffRacer Customs checks GitHub and installs a newer published package from
+Riff Racer Customs checks GitHub and installs a newer published package from
 inside the editor. The installed version is shown in the update window.
 
 - **Stable** is the default channel and only follows GitHub's latest

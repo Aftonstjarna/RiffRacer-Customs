@@ -497,12 +497,12 @@ public:
     AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);}
     bool confirmUpdate(){
         if(!unsaved_)return true;
-        auto *question=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Installing the update closes RiffRacer Customs. Adjustments that have not been exported will be lost. Continue?");
+        auto *question=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Installing the update closes Riff Racer Customs. Adjustments that have not been exported will be lost. Continue?");
         int answer=gtk_dialog_run(GTK_DIALOG(question));gtk_widget_destroy(question);
         return answer==GTK_RESPONSE_YES;
     }
     void build(GtkWindow *parent){
-        dialog_=gtk_dialog_new_with_buttons("RiffRacer Customs",parent,GTK_DIALOG_MODAL,"Close",GTK_RESPONSE_CLOSE,nullptr);gtk_window_set_default_size(GTK_WINDOW(dialog_),windowWidth,windowHeight);if(maximized)gtk_window_maximize(GTK_WINDOW(dialog_));
+        dialog_=gtk_dialog_new_with_buttons("Riff Racer Customs",parent,GTK_DIALOG_MODAL,"Close",GTK_RESPONSE_CLOSE,nullptr);gtk_window_set_default_size(GTK_WINDOW(dialog_),windowWidth,windowHeight);if(maximized)gtk_window_maximize(GTK_WINDOW(dialog_));
         auto *content=gtk_dialog_get_content_area(GTK_DIALOG(dialog_));gtk_container_set_border_width(GTK_CONTAINER(content),12);
         auto *sources=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,6);gtk_box_pack_start(GTK_BOX(content),sources,false,false,4);
         const char *sourceLabels[]={"Open game folder","Import mod folder","Import mod ZIP","Stock cars / new mod"};for(int i=0;i<4;i++){auto *button=gtk_button_new_with_label(sourceLabels[i]);gtk_box_pack_start(GTK_BOX(sources),button,false,false,0);g_object_set_data(G_OBJECT(button),"source-action",GINT_TO_POINTER(i));g_signal_connect(button,"clicked",G_CALLBACK(+[](GtkButton *b,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.openSource(GPOINTER_TO_INT(g_object_get_data(G_OBJECT(b),"source-action")));});}),this);}

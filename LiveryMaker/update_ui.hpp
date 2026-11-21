@@ -439,7 +439,7 @@ inline void checkWorker(std::shared_ptr<State> state, Channel channel, bool manu
             state->cacheCheck = !release.installable;
             state->message = release.installable
                                  ? "Version " + release.version + " is available."
-                                 : "RiffRacer Customs " + std::string(CUSTOMS_VERSION) +
+                                 : "Riff Racer Customs " + std::string(CUSTOMS_VERSION) +
                                        " is the latest published release on the " +
                                        (channel == Channel::Beta ? "beta" : "stable") + " channel.";
             state->percent = -1;
@@ -502,11 +502,11 @@ inline void installWorker(std::shared_ptr<State> state) {
         {
             std::lock_guard<std::mutex> lock(state->mutex);
             state->stage = Stage::Installing;
-            state->message = "Installing " + release.version + ". RiffRacer Customs will restart.";
+            state->message = "Installing " + release.version + ". Riff Racer Customs will restart.";
             state->percent = -1;
         }
         installPackage(package);
-        setStage(state, Stage::Installed, "Installed " + release.version + ". RiffRacer Customs is restarting.");
+        setStage(state, Stage::Installed, "Installed " + release.version + ". Riff Racer Customs is restarting.");
     } catch (const std::exception &error) {
         Stage stage;
         {
@@ -551,7 +551,7 @@ public:
     void buildButton(GtkWidget *row) {
         button_ = gtk_button_new_with_label("Updates…");
         gtk_box_pack_end(GTK_BOX(row), button_, false, false, 0);
-        gtk_widget_set_tooltip_text(button_, ("RiffRacer Customs " + version_ +
+        gtk_widget_set_tooltip_text(button_, ("Riff Racer Customs " + version_ +
             ". Stable updates are recommended; beta updates are opt-in prereleases. Every package is verified with SHA-256 before installation.").c_str());
         g_signal_connect(button_, "clicked", G_CALLBACK(+[](GtkButton *, gpointer data) {
             static_cast<UpdatePanel *>(data)->openDialog();
@@ -656,7 +656,7 @@ private:
     }
 
     void createDialog() {
-        dialog_ = gtk_dialog_new_with_buttons("RiffRacer Customs Update", button_ ? GTK_WINDOW(gtk_widget_get_toplevel(button_)) : nullptr,
+        dialog_ = gtk_dialog_new_with_buttons("Riff Racer Customs Update", button_ ? GTK_WINDOW(gtk_widget_get_toplevel(button_)) : nullptr,
                                               GTK_DIALOG_MODAL, "Close", GTK_RESPONSE_CLOSE, nullptr);
         auto *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog_));
         gtk_container_set_border_width(GTK_CONTAINER(content), 12);
@@ -788,9 +788,9 @@ private:
             buttonLabel_ = label;
             gtk_button_set_label(GTK_BUTTON(button_), label.c_str());
             gtk_widget_set_tooltip_text(button_, stage == Stage::Ready && available && installable
-                ? ("RiffRacer Customs " + version +
+                ? ("Riff Racer Customs " + version +
                    " is available. Open this window to read the release notes and install it.").c_str()
-                : ("RiffRacer Customs " + version_ +
+                : ("Riff Racer Customs " + version_ +
                    ". Stable updates are recommended; beta updates are opt-in prereleases. Every package is verified with SHA-256 before installation.").c_str());
         }
         if (stage == Stage::Ready && available && installable) reported_ = true;

@@ -43,7 +43,7 @@ AnyLinux runtime and packaging sources:
 https://github.com/pkgforge-dev/Anylinux-sharun/tree/3.9.0
 https://github.com/pkgforge-dev/appimagetool/tree/0.7.0
 https://github.com/pkgforge-dev/cross-libc-dlopen/tree/v0.2.11
-RiffRacer Customs source: https://github.com/Aftonstjarna/RiffRacer-Customs
+Riff Racer Customs source: https://github.com/Aftonstjarna/RiffRacer-Customs
 SOURCES
 pacman -Q > "$APPDIR/share/doc/riffracer-customs/DEPENDENCIES.txt"
 printf 'quick-sharun revision: %s\n' "$revision" > "$APPDIR/share/doc/riffracer-customs/BUILD.txt"
