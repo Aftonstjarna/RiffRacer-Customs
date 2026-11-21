@@ -1,3 +1,40 @@
+# RiffRacer Customs 0.3.0-beta.7
+
+## In-game summary
+
+- Add a transparent livery template with UV guide outlines.
+- Paint, Livery and HUD tools now live in sidebar tabs.
+- Drag the sidebar divider to make the preview larger or smaller.
+
+## Full release notes
+
+- Add **Add livery template** in the Livery tab. It creates a transparent
+  DXT5 livery containing cyan UV island outlines for the paint mesh only.
+  Export it with **Save PNG / blank template**, use it as a guide layer in an
+  image editor, delete the guide layer, then import the finished livery.
+- Replace the Paint/Livery expander and **Adjust HUD / boosters** button with
+  native **Paint**, **Livery** and **HUD** tabs. Paint holds names, prices,
+  colors, defaults and reset; Livery holds PNG import/save, templates and
+  test/UV artwork; HUD holds multiplier brackets, meter shape and attachment
+  placement. Switching away from HUD applies the active adjustment and hides
+  placement guides.
+- Make the sidebar/preview divider a wide draggable handle for resizing the
+  preview viewport. Long sidebar labels wrap, and the horizontal scrollbar is
+  removed while vertical scrolling remains for overflow.
+- Keep the beta.6 placement shortcuts, meter selector, importer and release
+  validation work.
+
+Validation: automated tests cover the transparent UV guide, tab startup and
+switching, HUD placement activation, and viewport resizing. UI screenshots cover
+the Paint, Livery and HUD tabs. Windows, Linux and AnyLinux packages are built
+and smoke-tested.
+
+Limitations: the livery template is a guide only; its cyan lines will render in
+game if the template is not replaced. Curvature following remains a local normal
+average, and HUD style controls require a native HUD atlas for the current car.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.6
 
 ## In-game summary
