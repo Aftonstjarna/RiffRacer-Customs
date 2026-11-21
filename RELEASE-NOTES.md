@@ -1,3 +1,41 @@
+# RiffRacer Customs 0.3.4-beta.1
+
+## In-game summary
+
+- Save a complete car template and rebuild it at another quality.
+- Templates store no GLB or path; choose it when rebuilding.
+- Reapply paint, livery, unlocks, names and HUD automatically.
+
+## Full release notes
+
+- Add **Save car template…** in the Paint tab. It stores the import recipe
+  (source hash/title, donor, authored ID, mode, options, part roles and
+  material plan) plus the appearance deltas for paint, livery, unlocks, names,
+  HUD and attachment transforms.
+- Add **Rebuild car from template** in the main window. Choose the template,
+  the source GLB, a target detail level and an output folder. The GLB hash is
+  verified against the template; a mismatch is refused and both hashes are
+  shown.
+- Add **Apply appearance template…** in the Paint tab to reapply paint, livery,
+  unlocks, names, HUD and attachment changes to the same authored car without
+  the source model.
+- Templates store no source GLB path and no embedded GLB. The player supplies
+  the path for each rebuild; it is never written into the template or package.
+- Rebuilding at another quality reuses the saved roles and material plan,
+  applies the requested texture sizes and reapplies the saved appearance.
+- Templates are same-car-ID only.
+
+Validation: template save/apply is covered by the editor smoke; a headless
+High-quality rebuild, custom-car unlock retention, material/part recipe reuse
+and package reimport are covered by the owner test. Windows, Linux and AnyLinux
+packages are built and smoke-tested.
+
+Limitations: the source GLB must match the template hash. Template recipes from
+older imports may lack newer option fields and fall back to defaults. Templates
+do not remap to a different authored car ID yet.
+
+---
+
 # RiffRacer Customs 0.3.3
 
 ## In-game summary
