@@ -2,6 +2,7 @@
 #include "mod_appearance.hpp"
 #include "economy.hpp"
 #include "mod_names.hpp"
+#include "error_dialog.hpp"
 #include "surface_snap.hpp"
 #include "multiplier_style.hpp"
 #include "car_preview.hpp"
@@ -403,7 +404,7 @@ class AttachmentEditor {
     }
     std::string key()const{return currentCar_+"/"+std::to_string(selected_);}
     void message(const std::string &s){gtk_label_set_text(GTK_LABEL(status_),s.c_str());}
-    template<class F> void guard(F fn){try{fn();}catch(const std::exception &e){auto *d=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_ERROR,GTK_BUTTONS_CLOSE,"%s",e.what());gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}}
+    template<class F> void guard(F fn){try{fn();}catch(const std::exception &e){showErrorDialog(GTK_WINDOW(dialog_),e.what());}}
     void refreshNodes(){nodes_=decodeModel(mod_.cars.at(currentCar_)->bytes());gtk_widget_queue_draw(canvas_);}
     void selectNode(){
         finish(true);

@@ -80,7 +80,7 @@ struct App {
     double carYaw=.65,carZoom=1,dragX=0;bool dragging=false;
     std::string gameFolder;
     void message(const std::string &s) {gtk_label_set_text(GTK_LABEL(status),s.c_str());}
-    void error(const std::string &s) {auto *d=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_ERROR,GTK_BUTTONS_CLOSE,"%s",s.c_str());gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}
+    void error(const std::string &s) {showErrorDialog(GTK_WINDOW(window),s);}
     template<class F> void guard(F f) {try{f();}catch(const std::exception &e){error(e.what());}}
     std::string choose(const char *title,GtkFileChooserAction action,const char *suggest=nullptr) {
         auto *d=gtk_file_chooser_dialog_new(title,GTK_WINDOW(window),action,"Cancel",GTK_RESPONSE_CANCEL,action==GTK_FILE_CHOOSER_ACTION_SAVE?"Save":"Choose",GTK_RESPONSE_ACCEPT,nullptr);
@@ -453,7 +453,7 @@ int main(int argc,char **argv) {
             if(folder.empty()||!fs::exists(fs::u8path(folder)/"vfs.zip")){auto *chooser=gtk_file_chooser_dialog_new("Open your Riff Racer game folder",nullptr,GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,nullptr);if(gtk_dialog_run(GTK_DIALOG(chooser))!=GTK_RESPONSE_ACCEPT){gtk_widget_destroy(chooser);return 0;}auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));folder=value;g_free(value);gtk_widget_destroy(chooser);}
             try{Archive stock((fs::u8path(folder)/"vfs.zip").u8string());AttachmentEditor editor(stock,mod);try{rememberFolder(folder);}catch(const std::exception &e){std::cerr<<"Could not remember game folder: "<<e.what()<<'\n';}editor.windowWidth=width;editor.windowHeight=height;editor.maximized=maximized;editor.run(nullptr);if(!editor.restartRequested)return 0;width=editor.windowWidth;height=editor.windowHeight;maximized=editor.maximized;
                 if(editor.requestedAction==0){folder=editor.requestedPath;mod.clear();}else mod=editor.requestedAction==3?fs::path{}:fs::u8path(editor.requestedPath);
-            }catch(const std::exception &e){auto *d=gtk_message_dialog_new(nullptr,GTK_DIALOG_MODAL,GTK_MESSAGE_ERROR,GTK_BUTTONS_CLOSE,"%s",e.what());gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);folder.clear();mod.clear();}
+            }catch(const std::exception &e){showErrorDialog(nullptr,e.what());folder.clear();mod.clear();}
         }
     }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }
