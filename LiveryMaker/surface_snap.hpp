@@ -19,7 +19,7 @@ inline V closest(V p,const Triangle &t){
  double inv=1/(va+vb+vc);return vAdd(t.a,vAdd(vMul(ab,vb*inv),vMul(ac,vc*inv)));
 }
 inline double ray(V origin,V direction,const Triangle &t){auto e1=vSub(t.b,t.a),e2=vSub(t.c,t.a),h=vCross(direction,e2);double det=vDot(e1,h);if(std::abs(det)<1e-9)return -1;auto s=vSub(origin,t.a);double u=vDot(s,h)/det;if(u<0||u>1)return -1;auto q=vCross(s,e1);double v=vDot(direction,q)/det;if(v<0||u+v>1)return -1;double d=vDot(e2,q)/det;return d>1e-4?d:-1;}
-inline std::array<double,9> align(const Model &model,const Matrix &base,const std::array<double,9> &values,bool hud){
+inline std::array<double,9> align(const Model &model,const Matrix &base,const std::array<double,9> &values,bool hud,bool conform=false){
  std::vector<Triangle> triangles;V center{};size_t count=0;
  for(const auto &node:model.nodes)if(bodyNode(node)&&lower(node.name).find("wheel")==std::string::npos)for(int index:node.meshes){const auto &mesh=model.meshes.at(index);auto materialName=lower(model.materials.at(mesh.material).at("name").get<std::string>());if(materialName.find("interior")!=std::string::npos||materialName.find("tyre")!=std::string::npos||materialName.find("wheel")!=std::string::npos)continue;
  for(size_t i=0;i+2<mesh.indices.size();i+=3){auto a=transform(node.matrix,mesh.positions.at(mesh.indices[i]),true),b=transform(node.matrix,mesh.positions.at(mesh.indices[i+1]),true),c=transform(node.matrix,mesh.positions.at(mesh.indices[i+2]),true);auto normal=vCross(vSub(b,a),vSub(c,a));if(length(normal)<1e-8)continue;triangles.push_back({a,b,c,vUnit(normal)});center=vAdd(center,a);++count;}}
@@ -29,14 +29,24 @@ inline std::array<double,9> align(const Model &model,const Matrix &base,const st
  std::sort(candidates.begin(),candidates.end(),[](auto &a,auto &b){return a.distance<b.distance;});V point{},normal{};bool found=false;
  for(size_t i=0;i<std::min<size_t>(candidates.size(),256)&&!found;i++){auto c=candidates[i];auto n=triangles[c.index].n;if(vDot(n,vSub(c.point,center))<0)n=vMul(n,-1);
  for(int side=0;side<2&&!found;side++){auto direction=side?vMul(n,-1):n;bool blocked=false;auto origin=vAdd(c.point,vMul(direction,.0005));for(const auto &t:triangles)if(ray(origin,direction,t)>0){blocked=true;break;}if(!blocked){point=c.point;normal=direction;found=true;}}}
- require(found,"No exposed exterior surface nearby; move the element closer to the body");auto matrix=adjustedMatrix(base,values);V from=vUnit({matrix[6],matrix[7],matrix[8]});double cosine=std::clamp(vDot(from,normal),-1.,1.);auto axis=vCross(from,normal);double sine=length(axis);
+ require(found,"No exposed exterior surface nearby; move the element closer to the body");
+ if(conform){
+  // Average the surrounding exposed faces so the element follows body curvature
+  // instead of the single hit triangle. Candidates are sorted by distance.
+  double radius=.25, weight=1., summedX=double(normal.x), summedY=double(normal.y), summedZ=double(normal.z);
+  for(const auto &c:candidates){double distance=std::sqrt(c.distance);if(distance>radius)break;if(distance<1e-6)continue;
+   auto n=triangles[c.index].n;if(vDot(n,normal)<0)n=vMul(n,-1);if(vDot(n,normal)<.2)continue;double w=1.-distance/radius;w*=w;
+   summedX+=double(n.x)*w;summedY+=double(n.y)*w;summedZ+=double(n.z)*w;weight+=w;}
+  if(weight>1.)normal=vUnit({F(summedX/weight),F(summedY/weight),F(summedZ/weight)});
+ }
+ auto matrix=adjustedMatrix(base,values);V from=vUnit({matrix[6],matrix[7],matrix[8]});double cosine=std::clamp(vDot(from,normal),-1.,1.);auto axis=vCross(from,normal);double sine=length(axis);
  if(sine<1e-8){axis=vUnit(vCross(from,std::abs(from.x)<.8?V{1,0,0}:V{0,1,0}));}else axis=vMul(axis,1/sine);
  auto rotate=[&](V v){return vAdd(vAdd(vMul(v,cosine),vMul(vCross(axis,v),sine)),vMul(axis,vDot(axis,v)*(1-cosine)));};
  Matrix identity{1,0,0,0,1,0,0,0,1,0,0,0};auto angles=values;angles[6]=angles[7]=angles[8]=1;auto rotation=adjustedMatrix(identity,angles);for(int col=0;col<3;col++){auto v=rotate({rotation[col*3],rotation[col*3+1],rotation[col*3+2]});rotation[col*3]=v.x;rotation[col*3+1]=v.y;rotation[col*3+2]=v.z;}
  auto result=values;double yaw=std::asin(std::clamp(-double(rotation[2]),-1.,1.));double pitch=std::atan2(rotation[5],rotation[8]),roll=std::atan2(rotation[1],rotation[0]);if(std::abs(std::cos(yaw))<1e-6){pitch=0;roll=std::atan2(-rotation[3],rotation[4]);}result[3]=pitch*180/3.141592653589793;result[4]=yaw*180/3.141592653589793;result[5]=roll*180/3.141592653589793;
  double clearance=.02;
  // Lift the complete HUD footprint above local curvature, not only its center.
- if(hud){auto aligned=adjustedMatrix(base,result);V right{aligned[0],aligned[1],aligned[2]},up{aligned[3],aligned[4],aligned[5]};for(int y=0;y<5;y++)for(int x=0;x<5;x++){auto sample=vAdd(point,vAdd(vMul(right,(x-2)*.25),vMul(up,(y-2)*.25)));auto origin=vSub(sample,vMul(normal,.25));for(const auto &t:triangles){double d=ray(origin,normal,t);if(d>0&&d<.75)clearance=std::max(clearance,d-.25+.02);}}}
+ if(hud||conform){auto aligned=adjustedMatrix(base,result);V right{aligned[0],aligned[1],aligned[2]},up{aligned[3],aligned[4],aligned[5]};for(int y=0;y<5;y++)for(int x=0;x<5;x++){auto sample=vAdd(point,vAdd(vMul(right,(x-2)*.25),vMul(up,(y-2)*.25)));auto origin=vSub(sample,vMul(normal,.25));for(const auto &t:triangles){double d=ray(origin,normal,t);if(d>0&&d<.75)clearance=std::max(clearance,d-.25+.02);}}}
  point=vAdd(point,vMul(normal,clearance));result[0]=point.x;result[1]=point.y;result[2]=point.z;return result;
 }
 }

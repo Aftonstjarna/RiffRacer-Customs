@@ -287,6 +287,10 @@ are also recorded. If a transform is still active, Ctrl+Z cancels that transform
 first. History follows the edited car/attachment and retains the last 200 steps
 for the current import session. Camera navigation is not part of edit history.
 
+**Ctrl+Shift+Z** resets the selected attachment directly to its imported
+transform, which is faster than stepping back through history. The reset itself
+is an undo step, so Ctrl+Z restores the pre-reset placement.
+
 ### Imported paints, liveries, names and defaults
 
 Import opens the paint/livery editor. **Adjust HUD / boosters** opens placement
@@ -296,8 +300,10 @@ controls and guides only when requested; turn it off to return to paint preview.
 - **Import PNG livery** adds or replaces artwork for that paint. Use the displayed
   exact dimensions; **Save PNG / blank template** exports artwork or a transparent
   template. Each edited paint gets an unused texture ID, preserving shared stock
-  or imported liveries. **Remove livery** clears its decal. **Reset paint and
-  livery** restores that paint's imported appearance.
+  or imported liveries. **Add clear PNG livery** creates a transparent decal for
+  a paint that has none, so **Import PNG livery** can fill it; **Remove livery**
+  clears the decal. **Reset paint and livery** restores that paint's imported
+  appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
   names**. This updates the US and GB English localized strings while retaining
   internal IDs.
@@ -344,17 +350,20 @@ the rendered model uses that surface's depth; empty space uses the view plane.
 The captured point stays at the initial mouse location while changing orbit or
 elevation. Wheel zoom still works during the drag.
 
-**Snap to car** in the placement controls aligns the selected HUD element or
-boost outlet to a nearby exposed body triangle. It points local +Z outward,
-preserves scale, and adds 0.02 model units of clearance. HUD panels also sample
-a 5×5 footprint to lift the panel over nearby curvature. Wheels, effects and
-identified interior materials are excluded; candidate surfaces must have an
-unobstructed outward ray. Place the element near the intended panel first.
+**Snap to car** in the placement controls, or **Space** with the preview focused,
+aligns the selected HUD element or boost outlet to a nearby exposed body triangle.
+It points local +Z outward, preserves scale, and adds 0.02 model units of
+clearance. **Ctrl+Space** also averages surrounding outward faces so the element
+follows the local curve instead of the single hit triangle, and samples a 5×5
+footprint to lift it over curvature. Wheels, effects and identified interior
+materials are excluded; candidate surfaces must have an unobstructed outward ray.
+Place the element near the intended panel first.
 
 Snapping affects only the selected element, even with linked NOS movement on.
-Ctrl+Z restores its previous placement. This is a local surface fit, not a
-curved decal projection: inspect the preview and check the exported result
-in-game, especially around open windows, seams and sharply curved bodywork.
+Ctrl+Z restores its previous placement. Curvature following is a local normal
+average, not a curved decal projection: inspect the preview and check the exported
+result in-game, especially around open windows, seams and sharply curved
+bodywork.
 
 ### One main editor
 
@@ -368,8 +377,9 @@ different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
-The sidebar also includes **Add PNG decal**, **Make test livery**, and **Save UV
-template**, alongside paint colors, names, defaults, PNG import/save and reset.
+The sidebar also includes **Add clear PNG livery**, **Make test livery**, and
+**Save UV template**, alongside paint colors, names, defaults, PNG import/save
+and reset.
 The preview selector sits between **Paint** and **Adjust HUD / boosters** in the
 toolbar and supports Painted + Livery, Car preview, Texture preview, Original
 artwork, and UV template. Placement stays behind Adjust HUD / boosters.
