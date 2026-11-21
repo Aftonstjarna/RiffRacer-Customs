@@ -3,6 +3,7 @@
 #include "economy.hpp"
 #include "mod_names.hpp"
 #include "error_dialog.hpp"
+#include "car_template.hpp"
 #include "surface_snap.hpp"
 #include "multiplier_style.hpp"
 #include "car_preview.hpp"
@@ -178,6 +179,35 @@ class AttachmentEditor {
         auto decal=appearance_->decal(p);if(decal)files[lower(decal->member)]=decal->batch;
         if(includePaint){std::map<std::string,std::string> names;auto carToken="car_"+p.car,paintTokenName=paintToken();auto carEdit=nameEdits_.find(carToken);if(carEdit!=nameEdits_.end())names[carToken]=carEdit->second;auto paintEdit=nameEdits_.find(paintTokenName);if(paintEdit!=nameEdits_.end())names[paintTokenName]=paintEdit->second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},names,false,false)){require(entry.first.rfind("assets/",0)==0,"Unexpected string path");files[entry.first.substr(7)]=std::move(entry.second);}}
         return files;
+    }
+    void saveCarTemplateTo(const fs::path &path){
+        auto p=paintSelection();auto files=extraFiles();
+        for(auto &car:mod_.cars)if(car.second->changed())files["assets/graphics/vehicles/"+car.first+"/nodes.bdae"]=car.second->bytes();
+        std::map<std::string,Bytes> assets;for(auto &entry:files){require(entry.first.rfind("assets/",0)==0,"Unexpected template resource");assets[entry.first.substr(7)]=std::move(entry.second);}
+        auto origin=mod_.originMetadata();auto mappings=origin.mappings();Json manifest;
+        manifest["created_with"]=CUSTOMS_VERSION;manifest["authored_id"]=currentCar_;manifest["name"]=localized(labels_,"car_"+currentCar_);
+        manifest["donor_id"]=mappings.count(currentCar_)?mappings.at(currentCar_):"";manifest["overwrite"]=origin.overwrite();
+        auto recipe=std::find_if(mod_.files.begin(),mod_.files.end(),[](const auto &entry){return lower(entry.first)=="model-import.json";});
+        if(recipe!=mod_.files.end()){auto parsed=Json::parse(std::string(recipe->second.begin(),recipe->second.end()));manifest["import_recipe"]=parsed;manifest["source_sha256"]=parsed.value("source_sha256","");manifest["source_title"]=parsed.value("source_title","");}
+        else{manifest["import_recipe"]=Json();manifest["source_sha256"]="";manifest["source_title"]="";}
+        auto bytes=origin.bytes();manifest["origin"]=std::string(bytes.begin(),bytes.end());
+        writeCarTemplate(path,manifest,std::move(assets));
+        message("Saved car template: "+path.u8string()+". Rebuild will ask for the source GLB; no path is stored.");
+    }
+    void applyCarTemplateFrom(const fs::path &path){
+        auto tpl=loadCarTemplate(path);auto authored=tpl.manifest.value("authored_id",std::string());require(authored==currentCar_,"Template is for car "+authored+"; select that car first");
+        for(auto &entry:tpl.assets){auto asset="assets/"+entry.first;mod_.files[asset]=entry.second;const std::string prefix="graphics/vehicles/",suffix="/nodes.bdae";if(entry.first.rfind(prefix,0)==0&&entry.first.size()==prefix.size()+3+suffix.size()&&entry.first.substr(prefix.size()+3)==suffix){auto car=entry.first.substr(prefix.size(),3);mod_.cars[car]=std::make_unique<NodeTransforms>(entry.second);}}
+        labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);nameEdits_.clear();hudEdits_.clear();
+        GtkTreeIter iter;if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(car_),&iter)){auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(car_));gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,localized(labels_,"car_"+currentCar_).c_str(),-1);}
+        selectCar();refreshPaint();markEdited();message("Applied appearance template: "+path.u8string()+". Export a copy to save it.");
+    }
+    void saveCarTemplateDialog(){
+        auto p=paintSelection();std::string name=exportBaseName(p)+"-car-template";auto *d=gtk_file_chooser_dialog_new("Save complete car template",GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_SAVE,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,nullptr);gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(d),true);gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),name.c_str());
+        std::string path;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));path=value;g_free(value);}gtk_widget_destroy(d);if(path.empty())return;saveCarTemplateTo(fs::u8path(path));
+    }
+    void applyCarTemplateDialog(){
+        auto *d=gtk_file_chooser_dialog_new("Choose a complete car template",GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,nullptr);
+        std::string path;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));path=value;g_free(value);}gtk_widget_destroy(d);if(path.empty())return;applyCarTemplateFrom(fs::u8path(path));
     }
     void exportPaintMod(){
         auto p=paintSelection();auto decal=appearance_->decal(p);bool hasNameEdit=nameEdits_.count("car_"+p.car)||nameEdits_.count(paintToken());require(decal||colors_->changed()||hasNameEdit,"No livery or paint changes to export");auto found=exportKinds_.find(paintKey(p));std::string kind=found!=exportKinds_.end()?found->second:(decal?"livery":"template");
@@ -533,6 +563,8 @@ public:
             g_signal_connect(button,"color-set",G_CALLBACK(+[](GtkColorButton *b,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);if(a.loadingPaint_)return;a.guard([&]{for(auto &field:a.paintColors_)if(field.second==GTK_WIDGET(b)){GdkRGBA rgb;gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(b),&rgb);a.colors_->set(a.paintSelection(),field.first,{float(rgb.red*255),float(rgb.green*255),float(rgb.blue*255)});a.markEdited();a.refreshPaint();}});}),this);
         }
         addPaintAction(paintTab,"Use this paint as default",4);addPaintAction(paintTab,"Reset paint and livery",3);
+        auto *saveTemplate=gtk_button_new_with_label("Save car template…");gtk_box_pack_start(GTK_BOX(paintTab),saveTemplate,false,false,0);gtk_widget_set_tooltip_text(saveTemplate,"Save this car's import recipe and appearance deltas. The source GLB path is not stored.");g_signal_connect(saveTemplate,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto&a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.saveCarTemplateDialog();});}),this);
+        auto *applyTemplate=gtk_button_new_with_label("Apply appearance template…");gtk_box_pack_start(GTK_BOX(paintTab),applyTemplate,false,false,0);gtk_widget_set_tooltip_text(applyTemplate,"Apply paint, livery, unlock, name and HUD changes from a saved car template.");g_signal_connect(applyTemplate,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto&a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.applyCarTemplateDialog();});}),this);
         auto *liveryTab=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_set_border_width(GTK_CONTAINER(liveryTab),6);
         liveryInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(liveryInfo_),true);gtk_label_set_max_width_chars(GTK_LABEL(liveryInfo_),32);gtk_box_pack_start(GTK_BOX(liveryTab),liveryInfo_,false,false,0);
         addPaintAction(liveryTab,"Import PNG livery",0);addPaintAction(liveryTab,"Add livery template",5);addPaintAction(liveryTab,"Save PNG / blank template",1);addPaintAction(liveryTab,"Save UV template",7);addPaintAction(liveryTab,"Make test livery",6);addPaintAction(liveryTab,"Export paint/livery mod",8);addPaintAction(liveryTab,"Remove livery",2);
@@ -629,6 +661,7 @@ public:
         auto p=paintSelection();require(p.car=="alf","Stock car selection failed");require(exportFileName(p,"uv")=="pulse-uv.png"&&exportFileName(p,"template")=="pulse-template.png"&&exportFileName(p,"test")=="pulse-test.png"&&exportFileName(p,"livery")=="pulse-arctic-livery.png","Car-name export filenames failed");auto source=appearance_->imageTemplate(p);
         if(!appearance_->decal(p)){require(gtk_widget_get_sensitive(addDecalButton_),"Clear livery action disabled");gtk_button_clicked(GTK_BUTTON(addDecalButton_));require(bool(appearance_->decal(p)),"Clear livery guide not created");auto guide=decodeDDS(appearance_->decal(p)->texture);size_t clearPixels=0,inkPixels=0;bool cyan=false;for(size_t i=0;i<guide.pixels.size();i+=4){if(guide.pixels[i+3]==0){clearPixels++;continue;}inkPixels++;if(guide.pixels[i+2]>guide.pixels[i]+40&&guide.pixels[i+1]>guide.pixels[i]+40)cyan=true;}savePNG(out/"clear-livery-guide.png",guide);require(clearPixels>inkPixels&&inkPixels>0&&cyan,"Livery template is missing its transparent layer or UV outlines");}
         appearance_->importPNG(p,diagnostic(source.texture));colors_->set(p,"col0",{25,50,75});refreshPaint();
+        auto templatePath=out/"car-template-test";saveCarTemplateTo(templatePath);auto templateCheck=loadCarTemplate(templatePath);require(templateCheck.manifest.value("authored_id","")==p.car&&templateCheck.assets.count("scripts/config/paint_pc.cfg"),"Car template save failed");auto savedColor=colors_->get(p,"col0",3);colors_->set(p,"col0",{1,2,3});refreshPaint();applyCarTemplateFrom(templatePath);require(colors_->get(p,"col0",3)==savedColor,"Car template appearance was not reapplied");
         auto paintFiles=paintModFiles(p);require(!paintFiles.empty(),"Paint-only export has no files");for(const auto &entry:paintFiles)require(entry.first.rfind("graphics/vehicles/"+p.car+"/",0)!=0,"Paint-only export included the car model");auto liveryOnly=paintModFiles(p,false);require(!liveryOnly.empty()&&liveryOnly.count("scripts/config/paint_pc.cfg")==0,"Livery-only export included paint configuration");auto paintMeta=publishPaintMod(paintFiles,{{"test","paint-only"}},out/"paint-only-mod");require(!fs::exists(out/"paint-only-mod/origin.txt")&&fs::exists(out/"paint-only-mod/livery-maker.json")&&fs::is_directory(out/"paint-only-mod/assets"),"Paint-only package layout failed");require(paintMeta["tool"]=="reriff-livery-maker-v1"&&!paintMeta.contains("origin_sha256")&&!paintMeta.contains("dat_sha256"),"Paint-only package metadata failed");auto liveryMeta=publishPaintMod(liveryOnly,{{"paint_configuration_modified",false}},out/"livery-only-mod");require(!fs::exists(out/"livery-only-mod/assets/scripts/config/paint_pc.cfg")&&fs::exists(out/"livery-only-mod/livery-maker.json"),"Livery-only package included paint configuration");require(liveryMeta["paint_configuration_modified"]==false,"Livery-only metadata changed");publishPaintMod(liveryOnly,{{"paint_configuration_modified",false}},out/"livery-only-mod");
         gtk_combo_box_set_active(GTK_COMBO_BOX(car_),1);gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),p.car.c_str());require(colors_->get(p,"col0",3)==std::vector<float>({25,50,75})&&appearance_->decal(p),"Switching stock cars lost edits");
         for(int mode=0;mode<5;mode++){gtk_combo_box_set_active(GTK_COMBO_BOX(viewMode_),mode);auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,900,600);auto *cr=cairo_create(surface);drawPreview(cr,900,600);cairo_destroy(cr);require(cairo_surface_write_to_png(surface,(out/("view-"+std::to_string(mode)+".png")).u8string().c_str())==CAIRO_STATUS_SUCCESS,"Preview export failed");cairo_surface_destroy(surface);}
@@ -705,6 +738,7 @@ public:
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(paint_),"1");gtk_combo_box_set_active_id(GTK_COMBO_BOX(paint_),std::to_string(selectedPaint.packIndex).c_str());require(appearance_->decal(selectedPaint)->name==decalId&&colors_->get(selectedPaint,"col0",3)==std::vector<float>({51,102,153}),"Paint selection lost appearance edits");
         gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook_),0);require(!placement_,"HUD placement did not close");
         std::cout<<"PASS imported color control, PNG retention, name editing and opt-in placement UI\n";
+        auto templatePath=output.parent_path()/(output.filename().u8string()+"-template");saveCarTemplateTo(templatePath);auto templateCheck=loadCarTemplate(templatePath);require(templateCheck.manifest.at("import_recipe").is_object()&&templateCheck.manifest.at("source_sha256").get<std::string>().size()==64,"Imported car template recipe missing");require(!templateCheck.manifest.contains("source_path")&&!templateCheck.manifest.contains("source_glb"),"Template stored a source path or GLB");
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(fields_[1]),gtk_spin_button_get_value(GTK_SPIN_BUTTON(fields_[1]))+.05);require(mod_.cars.at(currentCar_)->changed(),"GUI edit did not reach writer");mod_.exportCopy(output,extraFiles());
         for(int wait=0;wait<30;wait++){while(gtk_events_pending())gtk_main_iteration();g_usleep(1000);}
         auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(dialog_),gtk_widget_get_allocated_height(dialog_));auto *cr=cairo_create(surface);gtk_widget_draw(dialog_,cr);cairo_destroy(cr);cairo_surface_write_to_png(surface,(output.u8string()+".png").c_str());cairo_surface_destroy(surface);

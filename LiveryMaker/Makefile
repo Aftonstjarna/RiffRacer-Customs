@@ -10,7 +10,7 @@ APP ?= reriff-livery-maker
 LIBS = -lpng -lz -lcrypto $(shell pkg-config --libs libcurl)
 CURLFLAGS = $(shell pkg-config --cflags libcurl)
 all: $(OUT)/$(APP)$(EXEEXT)
-$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp config_author.hpp economy.hpp car_preview.hpp car_hud_preview.hpp mod_editor.hpp mod_appearance.hpp mod_names.hpp error_dialog.hpp surface_snap.hpp attachment_editor.hpp multiplier_style.hpp model_import.hpp model_import_ui.hpp texture_encode.hpp decimate.hpp update_channel.hpp update_ui.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
+$(OUT)/$(APP)$(EXEEXT): main.cpp core.hpp paint.hpp config_author.hpp economy.hpp car_preview.hpp car_hud_preview.hpp mod_editor.hpp mod_appearance.hpp mod_names.hpp error_dialog.hpp car_template.hpp surface_snap.hpp attachment_editor.hpp multiplier_style.hpp model_import.hpp model_import_ui.hpp texture_encode.hpp decimate.hpp update_channel.hpp update_ui.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(CURLFLAGS) main.cpp -o $@ $$(pkg-config --cflags --libs gtk+-3.0) $(LIBS) $(LDFLAGS)
 $(OUT)/test-livery$(EXEEXT): test.cpp core.hpp paint.hpp ../NativeLinux/native_assets.hpp ../NativeLinux/native_common.hpp ../NativeLinux/archive.hpp
@@ -39,7 +39,7 @@ $(OUT)/test-surface-snap$(EXEEXT): test_surface_snap.cpp surface_snap.hpp mod_ed
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test_surface_snap.cpp -o $@ $(LIBS) $(LDFLAGS)
 
-$(OUT)/test-model-import$(EXEEXT): test_model_import.cpp model_import.hpp texture_encode.hpp mod_editor.hpp mod_names.hpp mod_appearance.hpp economy.hpp core.hpp paint.hpp
+$(OUT)/test-model-import$(EXEEXT): test_model_import.cpp model_import.hpp texture_encode.hpp mod_editor.hpp mod_names.hpp mod_appearance.hpp economy.hpp car_template.hpp core.hpp paint.hpp
 	mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) test_model_import.cpp -o $@ $(LIBS) $(LDFLAGS)
 

@@ -100,6 +100,19 @@ struct App {
         auto &paint=paints.at(chosen);auto base=exportSlug(paint.carName,paint.car);
         if(std::string(kind)=="livery"&&!paint.paintName.empty()){auto name=exportSlug(paint.paintName,"");if(!name.empty())base+="-"+name;}return base+"-"+kind+".png";
     }
+    void rebuildCarTemplate(){
+        require(bool(archive),"Open a game folder first");
+        auto templatePath=choose("Choose a car template folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(templatePath.empty())return;
+        auto tpl=loadCarTemplate(fs::u8path(templatePath));require(tpl.manifest.contains("import_recipe")&&tpl.manifest.at("import_recipe").is_object(),"This template has no import recipe; use Apply appearance template in the editor.");
+        auto glb=choose("Choose the source GLB for this template",GTK_FILE_CHOOSER_ACTION_OPEN);if(glb.empty())return;
+        auto *dialog=gtk_dialog_new_with_buttons("Rebuild car quality",GTK_WINDOW(window),GTK_DIALOG_MODAL,"Cancel",GTK_RESPONSE_CANCEL,"Continue",GTK_RESPONSE_ACCEPT,nullptr);
+        auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_set_border_width(GTK_CONTAINER(box),10);auto *label=gtk_label_new("Choose the detail level for the rebuilt car. The template's roles, materials and appearance will be reapplied.");gtk_label_set_line_wrap(GTK_LABEL(label),true);gtk_box_pack_start(GTK_BOX(box),label,false,false,0);
+        auto *quality=gtk_combo_box_text_new();for(auto *text:{"Light","Vanilla-matched (recommended)","High detail","Full source detail"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(quality),text);int preset=tpl.manifest.at("import_recipe").value("options",Json::object()).value("quality",1);gtk_combo_box_set_active(GTK_COMBO_BOX(quality),std::clamp(preset,0,3));gtk_box_pack_start(GTK_BOX(box),quality,false,false,0);gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),box);gtk_widget_show_all(dialog);
+        int response=gtk_dialog_run(GTK_DIALOG(dialog));auto chosen=importer::Options::Quality(std::clamp(gtk_combo_box_get_active(GTK_COMBO_BOX(quality)),0,3));gtk_widget_destroy(dialog);if(response!=GTK_RESPONSE_ACCEPT)return;
+        auto out=choose("Choose a new folder for the rebuilt car",GTK_FILE_CHOOSER_ACTION_SAVE,"customs-rebuilt-car");if(out.empty())return;
+        rebuildFromTemplate(*archive,tpl,fs::u8path(glb),fs::u8path(out),chosen);
+        AttachmentEditor(*archive,fs::u8path(out)).run(GTK_WINDOW(window));
+    }
     void load(const std::string &p,bool persist=true) {
         auto next=std::make_unique<Archive>((fs::u8path(p)/"vfs.zip").u8string());
         auto labels=displayNames(*next);auto selections=paintSelections(*next,labels);
@@ -272,6 +285,7 @@ struct App {
         auto *imports=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),imports,false,false,0);
         button(imports,"Import mod folder",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose mod folder containing assets",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
         button(imports,"Import mod ZIP",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose loose mod ZIP",GTK_FILE_CHOOSER_ACTION_OPEN);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
+        auto *rebuild=button(imports,"Rebuild car from template",this,[](App &a){a.rebuildCarTemplate();});gtk_widget_set_tooltip_text(rebuild,"Rebuild a saved car template at a new quality. You will choose the source GLB and the editor verifies its hash.");
         auto *row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row,false,false,0);
         button(row,"Open game folder",this,[](App &a){auto p=a.choose("Game folder containing vfs.zip",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!p.empty())a.load(p);});
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Car"),false,false,0);

@@ -522,6 +522,26 @@ namespace separate. The composer allows at most nine paint packs per car;
 the optional imported-body paint uses a free slot when available and otherwise
 replaces the default pack.
 
+### Complete car templates
+
+Use **Save car template…** in the Paint tab to store the current car's import
+recipe and appearance deltas in a portable folder. The recipe contains the
+source GLB hash and title, donor, authored ID, import mode, detail/fitting
+options, part roles and material plan. The `assets/` folder contains paint,
+livery, unlock, name, HUD and attachment changes. The source GLB path and the
+GLB itself are deliberately not stored.
+
+**Apply appearance template…** reapplies only the saved paint, livery, unlock,
+name, HUD and attachment changes to the same authored car without needing the
+source model. **Rebuild car from template** in the main window asks for the
+source GLB, verifies its SHA-256, lets you choose a new detail level, and then
+reapplies the saved appearance. The chosen GLB path is used only for that
+rebuild and is not written into the template or package.
+
+Templates are same-car-ID only. They do not depend on duplicate-resource
+overlay priority, so they are the safe way to regenerate a car at another
+quality when graphics overlays conflict.
+
 The donor's driving setup and animation are retained. Use the placement editor
 for HUD/NOS adjustments; collision, glow, clipping, paint slots, wheel animation,
 texture orientation and visual alignment require an in-game test.
