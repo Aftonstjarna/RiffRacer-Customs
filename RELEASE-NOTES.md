@@ -1,3 +1,38 @@
+# RiffRacer Customs 0.3.1
+
+## In-game summary
+
+- Export the selected livery as its own standalone mod package.
+- Choose whether to include paint colors, price and names.
+- The package uses only assets and metadata, with no origin file.
+
+## Full release notes
+
+- Add **Export paint/livery mod** to the Livery tab. It writes a standalone
+  package for the current paint instead of the whole imported car.
+- Add an **Include paint configuration** checkbox to the export dialog. When
+  checked, the package includes paint colors, price, names and the paint
+  CFG/Lua. When unchecked, it contains only the livery texture.
+- Use the runtime-compatible package layout: an `assets/` folder plus
+  `livery-maker.json`, with no `origin.txt` and no generated cache. The game
+  rebuilds the cache at startup.
+- Default to livery-only when the paint already has a livery and no paint
+  changes; default to including paint when colors or names changed.
+- Safely replace a previous owned paint package, removing stale caches, while
+  refusing unrelated folders and full mod packages.
+- Keep the 0.3.0 importer, editor tabs, HUD styles, placement shortcuts, decal
+  cloning and car/paint-based PNG filenames.
+
+Validation: the unified editor smoke exports both package variants and checks
+the file layout, metadata, livery-only contents and safe replacement. Windows,
+Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: including paint configuration writes the full native paint table,
+which can conflict with other paint-config mods. Livery-only packages overwrite
+the selected decal resource, so verify the installed result in game.
+
+---
+
 # RiffRacer Customs 0.3.0
 
 ## In-game summary
