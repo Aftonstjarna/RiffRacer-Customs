@@ -484,10 +484,12 @@ effect materials and activation remain; the projected fade is experimental.
 
 **Use a neutral body paint mask** (default on) replaces `carpaint_occspec` with a
 uniform 512² yellow DXT1 texture, removing the donor's occlusion/livery pattern.
-**Add one extra paint slot** clones the darkest donor paint, clears its decal,
-sets its price to 1 and appends it to `paint.cfg`, `paint_PC.cfg` and the 32-bit
-paint Lua. It reuses an unused stock paint-name token and renames that token to
-the entered name. The 64-bit Lua is unchanged.
+**Add imported-body paint** is off by default. When enabled, it clones the
+darkest donor paint, clears its decal, sets its price to 1 and appends it to
+`paint.cfg`, `paint_PC.cfg` and the 32-bit paint Lua. It reuses an unused stock
+paint-name token and renames that token to the entered name. If the donor already
+has nine paints, the new paint replaces the donor's default paint pack instead
+of opening a new slot. The 64-bit Lua is unchanged.
 
 **Apply names to all languages** (default on) writes the car and extra-paint
 names into all eight string banks; turn it off to update only US and GB. When the
@@ -504,7 +506,8 @@ the exported package and leaves the stock archive untouched. Paint names still
 reuse existing stock paint tokens. The ReRiff composer remaps the authored ID to
 the next free native slot and keeps its assets, paint table, origin mapping and
 name namespace separate. The composer allows at most nine paint packs per car;
-the extra paint is added only when the donor is below that limit.
+the optional imported-body paint uses a free slot when available and otherwise
+replaces the default pack.
 
 The donor's driving setup and animation are retained. Use the placement editor
 for HUD/NOS adjustments; collision, glow, clipping, paint slots, wheel animation,
