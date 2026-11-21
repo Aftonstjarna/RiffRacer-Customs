@@ -515,18 +515,21 @@ candidates and verifies name editing, paint access, unchanged collision and
 no-overwrite behavior. Offline conversion success is not an in-game rendering claim.
 
 
-### Multiplier bracket style
+### HUD artwork styles
 
-Under **Adjust HUD / boosters**, choose **Four brackets** or **Two top brackets
-(Pulse)**. A small preview shows the native bracket artwork. This applies to the
-selected car across all paints; it does not move or resize the multiplier. Choose
-**Keep imported / original** to discard the style edit and restore the source
-atlas. Switching cars retains pending choices. Export the mod to save them.
+Under **Adjust HUD / boosters**, **Multiplier brackets** chooses **Four brackets**
+or **Two top brackets (Pulse)**. **Boost meter shape** lists every distinct native
+stock meter artwork, labelled by its source car. Small previews show the selected
+multiplier and meter. These choices apply to the selected car across all paints;
+they do not move or resize either element. Choose **Keep imported / original** to
+restore only that artwork. Switching cars retains pending choices. Export the mod
+to save them.
 
-The editor copies only the original native multiplier DDS payload. The boost
-meter, other HUD data and attachment transforms remain unchanged. A mod containing
-only a bracket style change can also be imported. Unknown/incompatible HUD atlas
-layouts are refused rather than recompressed. Regression command:
+The editor copies only the selected original multiplier or `car_meter` DDS
+payloads, and composes both choices without discarding the other. Other HUD data
+and attachment transforms remain unchanged. A mod containing only a style change
+can also be imported. Unknown/incompatible HUD atlas layouts are refused rather
+than recompressed. Regression command:
 
 ```sh
 make -C LiveryMaker ../build/livery-maker/test-multiplier
@@ -536,7 +539,7 @@ build/livery-maker/test-multiplier GAME_FOLDER
 
 **Show car HUD** is enabled by default in car preview modes. It draws a static
 ×4 multiplier and 70% boost meter from the current car's HUD atlas, using the
-current attachment position, rotation and scale. Changing bracket style updates
+current attachment position, rotation and scale. Changing either style updates
 this preview immediately. Turning placement controls off removes the guides but
 keeps the HUD artwork visible. Uncheck Show car HUD for a clean car view.
 The HUD is depth-tested against the car to expose clipping. Track tint, gameplay
