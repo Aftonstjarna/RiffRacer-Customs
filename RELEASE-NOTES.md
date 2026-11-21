@@ -1,3 +1,69 @@
+# RiffRacer Customs 0.3.0
+
+## In-game summary
+
+- Import GLB cars with paints, liveries, HUD and decals.
+- Custom car IDs, imported-body paint and native HUD styles.
+- Simple importer, sidebar tabs and a resizable preview.
+
+## Full release notes
+
+### Model import
+
+- Import static GLB 2.0 cars into native Riff Racer assets: geometry, base-color
+  textures, native materials, collision, effect shells, shadow, garage box,
+  paint slots and names.
+- Use the **Simple** importer by default: in-game name, auto-selected donor,
+  Add/Replace mode, generated car ID and detail level. **Add as a new car** is
+  the safe default. Advanced options expose scale, orientation, donor ranking,
+  authored ID, fitting, materials and the full part-role review.
+- Choose **Light**, **Vanilla-matched**, **High** or **Full source** detail.
+  Quadric simplification preserves UV seams and boundaries; imported meshes are
+  merged by node and material.
+- Import base-color PNG textures with power-of-two resize, mip chains and
+  DXT1/DXT5 encoding. Set native templates, sizes and finishes per material.
+- Fit the donor collision hull, ground shadow and garage selection box to the
+  imported footprint, and rebuild the front, electric and rear effect shells.
+- Add a neutral body paint mask. **Imported-body paint** is on by default and
+  creates a decal-free imported-body paint; when a donor already has nine paint
+  packs, it replaces the default pack instead of overflowing the client limit.
+- Use any three-letter lowercase car ID for a new car, such as `spn`. The
+  exporter creates its name token for all locales, clones both paint tables and
+  the 32-bit paint Lua, and copies/remaps referenced donor decals under the new
+  ID. Stock archives and stock paint-name tokens remain untouched.
+- Generate `ATTRIBUTION.txt` from GLB author, licence, title and source metadata.
+
+### Editor
+
+- Sidebar tabs for **Paint**, **Livery** and **HUD**; the full-height sidebar
+  scrolls cleanly and the status line sits under the preview.
+- Resize the preview by dragging the wide sidebar divider.
+- Placement shortcuts: **Space** snap, **Ctrl+Space** snap and follow local body
+  curvature, and **Ctrl+Shift+Z** undoable reset to the imported transform.
+- Multiplier bracket styles plus a **Boost meter shape** selector with the 13
+  distinct native stock meter artworks and a live preview.
+- **Add livery template** creates a transparent decal with cyan UV island
+  outlines for use as a guide layer. PNG saves use car and paint names, such as
+  `pulse-carmine-livery.png`, `pulse-template.png`, `pulse-test.png` and
+  `pulse-uv.png`.
+- Error dialogs and status text are selectable so failures can be copied.
+
+Validation: GLB parsing, conversion, decimation, texture encoding, material
+mapping, collision/shadow fitting, localization tokens, paint cloning, decal
+copying, HUD composition, placement snapping and update rules are covered by
+automated tests. Import and editor UI smokes cover Simple/Advanced modes,
+custom-ID export/reimport, decorated paints, tabs, placement and exported image
+names. Windows, Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: imported cars still require an in-game check of textures, glow,
+collision, paint and decals. Metallic/roughness, normal, occlusion and emissive
+maps, vertex colours and base-color factors are not converted. Curvature
+following is a local normal average, and effect UVs/fades remain experimental.
+Add mode requires ReRiff automatic car-slot support. Livery templates are guides
+only; their cyan lines render in game if not removed before reimport.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.10
 
 ## In-game summary
