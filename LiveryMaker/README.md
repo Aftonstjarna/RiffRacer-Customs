@@ -491,8 +491,11 @@ stay the donor's, and `collision.btinfo` is unchanged.
 effect budgets, offsets them outward and projects cylindrical UVs. The donor
 effect materials and activation remain; the projected fade is experimental.
 
-**Use a neutral body paint mask** (default on) replaces `carpaint_occspec` with a
-uniform 512² yellow DXT1 texture, removing the donor's occlusion/livery pattern.
+**Use a neutral body paint mask** (default on) reads the donor body material's
+paint-mask slot and replaces that texture with a uniform yellow DXT1 texture at
+the donor's size, format and mip count. Most donors use `carpaint_occspec`; the
+Malibu and some others use `occ_spec`. This removes the donor's occlusion and
+livery pattern from imported UVs.
 **Add imported-body paint** is enabled by default and appears in the Simple view.
 It clones the darkest donor paint, clears its decal, sets its price to 1 and
 appends it to `paint.cfg`, `paint_PC.cfg` and the 32-bit paint Lua. It reuses an

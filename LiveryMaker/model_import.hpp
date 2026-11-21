@@ -224,13 +224,25 @@ struct PaintPackResult {Bytes cfg;size_t index;Json pack;bool overwroteDefault=f
 inline std::optional<PaintPackResult> addPaintPack(const Bytes &cfg,const std::string &car,const std::string &token){
  auto roots=Json::parse(Config(cfg).json());auto &paints=configNamed(roots,"Paints");auto &carNode=configNamed(paints["value"],car);auto &carTable=carNode["value"];require(carTable.is_array()&&!carTable.empty(),"Missing car paint table");
  Json pack;double darkest=1e300;for(auto &candidate:carTable){auto &fields=candidate["value"];double sum=0;for(const char *name:{"col0","col1","col2"}){auto &field=configNamed(fields,name);for(auto &channel:field["value"])sum+=channel["value"].get<double>();}if(sum<darkest){darkest=sum;pack=candidate;}}
- require(!pack.is_null(),"Missing paint pack");auto &fields=pack["value"];configSet(fields,"packName",token);configSet(fields,"livery",-1.0);configSet(fields,"packPrice",1.0);for(const char *name:{"col0","col1","col2"}){auto &field=configNamed(fields,name);for(auto &channel:field["value"])channel["value"]=2.0;}
+ require(!pack.is_null(),"Missing paint pack");auto &fields=pack["value"];configSet(fields,"packName",token);configSet(fields,"livery",0.0);configSet(fields,"packPrice",1.0);for(const char *name:{"col0","col1","col2"}){auto &field=configNamed(fields,name);for(auto &channel:field["value"])channel["value"]=2.0;}
  if(carTable.size()>=9){carTable[0]=pack;return PaintPackResult{configEncode(roots),0,paintPackObject(pack),true};}
  size_t index=carTable.size();carTable.push_back(pack);return PaintPackResult{configEncode(roots),index,paintPackObject(pack),false};
 }
 
-inline Texture neutralPaintMask(){
- Image image{512,512,Bytes(size_t(512)*512*4)};for(size_t i=0;i<image.pixels.size();i+=4){image.pixels[i]=255;image.pixels[i+1]=255;image.pixels[i+2]=0;image.pixels[i+3]=255;}auto dds=textures::buildDDS(image,"DXT1");Texture texture;texture.name="carpaint_occspec";texture.fourcc="DXT1";texture.width=512;texture.height=512;texture.flags=0;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);return texture;
+inline Texture neutralPaintMask(const std::string &name="carpaint_occspec",unsigned width=512,unsigned height=512,const char *fourcc="DXT1",uint32_t flags=0){
+ require(!name.empty()&&width&&height,"Invalid paint mask texture");Image image{width,height,Bytes(size_t(width)*height*4)};for(size_t i=0;i<image.pixels.size();i+=4){image.pixels[i]=255;image.pixels[i+1]=255;image.pixels[i+2]=0;image.pixels[i+3]=255;}auto dds=textures::buildDDS(image,fourcc);Texture texture;texture.name=name;texture.fourcc=fourcc;texture.width=width;texture.height=height;texture.flags=flags;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);return texture;
+}
+// Donor paint shaders reference their mask by different names: most use
+// carpaint_occspec while the Malibu and some others use occ_spec. Read the
+// body material's slots instead of assuming the Pulse donor's name.
+inline std::vector<std::string> paintMaskSlots(const Model &native){
+ std::vector<std::string> slots;for(auto &material:native.materials){auto materialName=lower(material.value("name",std::string()));if(materialName.find("carpaint")==std::string::npos)continue;
+  for(auto &slot:material.value("textures",Json::array())){if(!slot.is_string())continue;auto value=lower(slot.get<std::string>());auto dot=value.rfind('.');if(dot!=std::string::npos)value.resize(dot);if(value.find("occ")!=std::string::npos||value.find("mask")!=std::string::npos)slots.push_back(value);}break;}
+ return slots;
+}
+inline std::vector<Texture> neutralPaintMasks(const Model &native,const std::vector<Texture> &atlas){
+ std::vector<Texture> masks;std::set<std::string> seen;for(const auto &name:paintMaskSlots(native)){if(!seen.insert(name).second)continue;auto found=std::find_if(atlas.begin(),atlas.end(),[&](const Texture &texture){return texture.name==name;});if(found==atlas.end())continue;auto fourcc=found->fourcc=="DXT5"?"DXT5":"DXT1";masks.push_back(neutralPaintMask(name,found->width,found->height,fourcc,found->flags));}
+ return masks;
 }
 
 inline Bytes fitCollision(const Bytes &original,double targetXL,double targetXH,double targetZL,double targetZH,double targetYTop){
@@ -261,7 +273,7 @@ inline Bytes cloneDecalBatch(const Bytes &batch,const std::string &from,const st
 }
 inline Bytes remapPaintLivery(const Bytes &cfg,const std::string &car,const std::map<int,int> &mapping){
  auto roots=Json::parse(Config(cfg).json());auto &paints=configNamed(roots,"Paints");auto &packs=configNamed(paints["value"],car)["value"];
- for(auto &pack:packs){auto &fields=pack["value"];auto &livery=configNamed(fields,"livery");int id=int(livery["value"].get<double>());auto found=mapping.find(id);double value=found==mapping.end()||found->second<1?-1.0:double(found->second);configSet(fields,"livery",value);}return configEncode(roots);
+ for(auto &pack:packs){auto &fields=pack["value"];auto &livery=configNamed(fields,"livery");int id=int(livery["value"].get<double>());auto found=mapping.find(id);double value=found==mapping.end()||found->second<1?0.0:double(found->second);configSet(fields,"livery",value);}return configEncode(roots);
 }
 
 inline Bytes fitShadow(const Bytes &model,double xl,double xh,double zl,double zh){
@@ -297,7 +309,7 @@ inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,c
  for(auto &binding:plan.materials){if(binding.image<0||!binding.importTexture)continue;auto image=textures::decodePNG(s.images.at(binding.image));auto width=textures::powerOfTwo(image.width,64,binding.size),height=textures::powerOfTwo(image.height,64,binding.size);image=textures::resize(image,width,height);const char *fourcc=textures::hasAlpha(image)?"DXT5":"DXT1";auto dds=textures::buildDDS(image,fourcc);Texture texture;texture.name=binding.texture;texture.fourcc=fourcc;texture.width=width;texture.height=height;texture.flags=binding.flags;texture.mips=u32(dds,28);texture.caps=u32(dds,112);texture.dds=std::move(dds);atlasTextures.push_back(std::move(texture));}
  auto result=convert(s,original,o,plan);ImportedMod mod({},&archive);Origin origin({},packageId.empty()?newPackageId():packageId);origin.setOverwrite(overwrite);origin.setMapping(authored,donor.id);mod.setOriginMetadata(origin);std::map<std::string,Bytes> assets;
  for(auto&e:archive.entries){auto path=lower(e.name);if(path.rfind(donorPrefix,0)==0)assets["assets/"+prefix+path.substr(donorPrefix.size())]=archive.load(e);}assets["assets/"+prefix+"lod0_livery.bdae"]=result.model;
- if(!atlasTextures.empty()||o.neutralMask){auto atlas=stockAsset(archive,donorPrefix+"textures/batchTextures.brres");for(auto &texture:atlasTextures)atlas=textures::withTexture(atlas,texture);if(o.neutralMask)atlas=textures::withTexture(atlas,neutralPaintMask());assets["assets/"+prefix+"textures/batchtextures.brres"]=std::move(atlas);}
+ if(!atlasTextures.empty()||o.neutralMask){auto stockAtlas=stockAsset(archive,donorPrefix+"textures/batchTextures.brres");auto atlas=stockAtlas;for(auto &texture:atlasTextures)atlas=textures::withTexture(atlas,texture);if(o.neutralMask){for(auto &mask:neutralPaintMasks(decodeModel(original),decodeTextures(stockAtlas)))atlas=textures::withTexture(atlas,mask);}assets["assets/"+prefix+"textures/batchtextures.brres"]=std::move(atlas);}
  std::map<std::string,std::string> renames{{"car_"+authored,name}};std::string paintToken;std::optional<PaintPackResult> paintAdded;if(o.addPaint)paintToken=newPaintToken(archive,authored).first;
  std::map<int,int> decalMap;size_t decalsCopied=0;
  if(authored!=donor.id){auto stockDecals=targets(archive);std::set<std::string> used(stockDecals.begin(),stockDecals.end());auto donorCfg=stockAsset(archive,"scripts/config/paint_PC.cfg");auto donorPacks=cfgValue(Json::parse(Config(donorCfg).json())).at("Paints").at(donor.id);for(auto &pack:donorPacks){int livery=pack.value("livery",-1);if(livery<=0||decalMap.count(livery))continue;std::string source=decalName(donor.id,livery),target=decalName(authored,livery);int targetNumber=livery;if(used.count(target)){targetNumber=0;for(int n=1;n<=99;n++){auto candidate=decalName(authored,n);if(!used.count(candidate)){target=candidate;targetNumber=n;break;}}if(!targetNumber){decalMap[livery]=-1;continue;}}try{auto batch=stockAsset(archive,"graphics/vehicles/decals/"+source+"/batchTextures.brres");auto renamed=cloneDecalBatch(batch,source,target);assets["assets/graphics/vehicles/decals/"+target+"/batchTextures.brres"]=std::move(renamed);decalMap[livery]=targetNumber;used.insert(target);++decalsCopied;}catch(const std::exception &){decalMap[livery]=-1;}}}

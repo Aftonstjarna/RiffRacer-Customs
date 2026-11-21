@@ -27,7 +27,7 @@ public:
     static constexpr const char *resource="scripts/config/paint_pc.cfg";
     explicit PaintConfig(Bytes cfg):original_(std::move(cfg)),current_(original_) {(void)Config(original_).json();nodes_=u32(current_,12);strings_=20+nodes_*32;}
     PaintConfig(Bytes cfg,Bytes lua,std::vector<PaintSelection> selections):PaintConfig(std::move(cfg)){lua_=std::move(lua);selections_=std::move(selections);}
-    void clearLivery(const PaintSelection &selection){auto offsets=values(selection,"livery",1);require(offsets.size()==1,"Missing native livery field");float value=-1;uint32_t bits;std::memcpy(&bits,&value,4);set32(current_,offsets[0],bits);}
+    void clearLivery(const PaintSelection &selection){auto offsets=values(selection,"livery",1);require(offsets.size()==1,"Missing native livery field");float value=0;uint32_t bits;std::memcpy(&bits,&value,4);set32(current_,offsets[0],bits);}
     explicit PaintConfig(const Archive &archive):original_(asset(archive,"scripts/config/paint_PC.cfg")),current_(original_) {
         lua_=asset(archive,"scripts/config/paint_PC.luac");
         selections_=paintSelections(archive,displayNames(archive));

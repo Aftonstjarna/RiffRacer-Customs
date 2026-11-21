@@ -1,3 +1,43 @@
+# RiffRacer Customs 0.3.4-beta.3
+
+## In-game summary
+
+- Plain custom paints no longer show donor paint-mask UV patches.
+- Clearing a livery now writes native zero, so plain packs reset.
+- Re-export an imported car to apply both fixes to its package.
+
+## Full release notes
+
+- Fix the neutral body paint mask for donors whose paint shader does not use
+  `carpaint_occspec`. The importer now reads the body material's actual paint
+  mask slot, which is `occ_spec` on the Malibu, Bolt and some other donors, and
+  replaces that texture at the donor's size, format and mip count. Imported
+  source UVs therefore sample a solid yellow mask instead of the donor's
+  occlusion and livery islands, removing the cyan and black patches on plain
+  paints.
+- Keep the existing behavior for donors that use `carpaint_occspec`; the
+  replacement is still a neutral yellow texture.
+- Write native `0` instead of `-1` when an added paint pack has no decal, when
+  a cloned donor pack has no copied decal, and when clearing a livery in the
+  Paint tab. Switching from a livery pack to a plain pack now clears the decal
+  in packages exported by this version.
+- Add regressions for the Malibu paint-mask slot and size, for non-negative
+  livery values across a cloned Impala paint table, and for clearing a livery.
+- Includes the car templates and livery-mod merge from 0.3.4-beta.1 and
+  0.3.4-beta.2.
+
+Validation: the owner Impala export converts nine donors, exports and reimports
+the car, and now also exports a Malibu-donor body whose `occ_spec` mask is a
+1024² neutral texture with 11 mips. The editor smokes cover imported paint
+editing, clearing a livery, the importer dialog, packaging and the merge action.
+Windows, Linux and AnyLinux packages are built and smoke-tested.
+
+Limitations: existing packages keep their donor mask and any negative livery
+values until they are re-exported; the ReRiff loader 1.5.0-beta.2 normalizes
+negative livery values at load time, but it cannot repair an old body mask.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.2
 
 ## In-game summary
