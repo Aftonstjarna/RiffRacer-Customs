@@ -1,3 +1,39 @@
+# RiffRacer Customs 0.3.0-beta.9
+
+## In-game summary
+
+- Imported-body paint is on by default, with a safe full-table fallback.
+- Custom car IDs keep cloned paint tables even when no slot is free.
+- Error text is selectable and the sidebar reaches the window bottom.
+
+## Full release notes
+
+- Enable **Add imported-body paint** by default and place it in the Simple
+  import view with an explanation. The paint name stays in Advanced and follows
+  the checkbox state.
+- When the donor already has nine paint packs, the imported-body paint now
+  replaces the donor's default paint pack instead of being skipped. Both paint
+  CFGs and the 32-bit paint Lua are updated.
+- Always clone the donor paint table under a custom authored car ID, even when
+  the optional extra paint is disabled or cannot open a new slot. This fixes the
+  editor error `key '<id>' not found` after importing a nine-pack donor.
+- Make error dialogs and the import status text selectable so messages can be
+  copied. Move the editor status line under the preview so the sidebar scroll
+  area reaches the bottom of the window.
+- Keep the beta.8 custom-ID tokens, Simple/Advanced importer, tabs and release
+  validation work.
+
+Validation: unit and import-dialog tests cover nine-pack default replacement,
+custom paint-table and Lua cloning, default-on state, custom IDs, Simple/Advanced
+switching and error-path startup. Windows, Linux and AnyLinux packages are built
+and smoke-tested.
+
+Limitations: persisted import preferences and field-level inline validation are
+not implemented yet. Imported-body paint replaces the donor default rather than
+creating a tenth pack because the composer supports at most nine.
+
+---
+
 # RiffRacer Customs 0.3.0-beta.8
 
 ## In-game summary
