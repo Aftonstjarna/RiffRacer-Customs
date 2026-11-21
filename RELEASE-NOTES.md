@@ -1,3 +1,31 @@
+# RiffRacer Customs 0.3.3
+
+## In-game summary
+
+- Exported assets now use lowercase names for current cache builders.
+- Mixed-case duplicate assets are refused safely.
+- Full mods and paint/livery packages use the normalized paths.
+
+## Full release notes
+
+- Normalize exported asset resource names to lowercase, matching the native VFS
+  index while preserving the original stock archive.
+- Apply normalization to full editor exports and standalone paint/livery
+  packages, including their embedded resource metadata.
+- Refuse case-only duplicate assets with different bytes instead of silently
+  choosing one.
+- Keep the 0.3.2 custom-car unlock slots and Riff Racer Customs display name.
+
+Validation: the origin/export test now writes a mixed-case decal path, verifies
+the lowercase output path and checks the absence of the mixed-case file. Full
+unit and import tests pass; Windows, Linux and AnyLinux packages are built and
+smoke-tested.
+
+Limitations: cache generation remains the game's responsibility; verify the
+installed mod and its resource names in game.
+
+---
+
 # RiffRacer Customs 0.3.2
 
 ## In-game summary
