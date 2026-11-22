@@ -1,3 +1,59 @@
+# RiffRacer Customs 0.3.4
+
+## In-game summary
+
+- Save a complete car template and rebuild it at another quality.
+- Merge livery mods and keep custom wheels, HUD and boosters correct.
+- Imports open a working copy; Export mod is the first save prompt.
+
+## Full release notes
+
+- Add complete car templates. **Save car template…** stores the import recipe
+  and appearance changes without the source path or GLB. **Rebuild car from
+  template** asks for the source GLB, verifies its SHA-256, lets you choose a
+  new detail level, and reapplies paint, livery, unlocks, names, HUD and
+  attachment changes. **Apply appearance template…** reapplies them without the
+  source model.
+- Add **Merge livery mods** for livery-only packages that target different
+  paints of the same car. It rebuilds one paint configuration and Lua from the
+  stock tables, merges decals and names, and refuses two mods that target the
+  same paint or a changed resource.
+- Fix the neutral body paint mask for every donor. The importer reads the body
+  material's actual mask slot, `carpaint_occspec` or `occ_spec`, and replaces it
+  at the donor's size, format and mip count. Plain paints no longer show the
+  donor's cyan or black UV-island patches.
+- Write native `0` instead of `-1` for paints without a decal and when clearing
+  a livery, so switching from a livery pack to a plain pack clears the decal in
+  newly exported packages.
+- Classify imported parts by material before name: wheel and tire materials
+  roll, while chrome wheel-arch trim stays on the body. Chrome trim no longer
+  spins with the wheels. Older templates are corrected when rebuilt, and saved
+  material settings are matched by name.
+- Snap linked boosters together. **Snap to car** and **Ctrl+Space** move every
+  linked outlet by the selected outlet's offset so the group keeps its spacing;
+  Ctrl+Z restores the whole group.
+- Model import no longer opens a save dialog. **Import and edit** opens an
+  unsaved working copy, and **Export mod** is the first folder prompt.
+- Custom cars now use their donor's HUD atlas for the multiplier and boost
+  meter preview and style choices. Choosing a style saves the edited atlas on
+  export.
+- Add regressions for template save/apply/rebuild, livery merging, donor paint
+  masks, native no-livery values, wheel roles, linked snapping, the working
+  copy and the donor HUD fallback.
+
+Validation: all unit tests and the unified, mod-attachment and importer smokes
+pass. Windows, Linux and AnyLinux packages are built and smoke-tested. Stable
+0.3.3 upgrades to this release through the stable update channel.
+
+Limitations: packages exported before this version need a rebuild or re-export
+to get the paint-mask and wheel-role fixes. Templates are same-car-ID only.
+Older templates are corrected for chrome names containing "chromewheel" or
+"wheelarch"; review other wheel trim roles in Advanced. The import working copy
+is temporary and is not cleaned automatically. Linked snapping translates the
+group as a whole rather than fitting each outlet to its own curvature.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.6
 
 ## In-game summary
