@@ -366,8 +366,10 @@ footprint to lift it over curvature. Wheels, effects and identified interior
 materials are excluded; candidate surfaces must have an unobstructed outward ray.
 Place the element near the intended panel first.
 
-Snapping affects only the selected element, even with linked NOS movement on.
-Ctrl+Z restores its previous placement. Curvature following is a local normal
+With linked NOS movement on, snapping translates the selected outlet and its
+linked outlets by the same offset, so the booster group keeps its spacing. Only
+the selected outlet is rotated and aligned to the surface. Ctrl+Z restores the
+whole group. Curvature following is a local normal
 average, not a curved decal projection: inspect the preview and check the exported
 result in-game, especially around open windows, seams and sharply curved
 bodywork.

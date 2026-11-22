@@ -1,3 +1,35 @@
+# RiffRacer Customs 0.3.4-beta.5
+
+## In-game summary
+
+- Linked boosters now snap to the car together, keeping their spacing.
+- The selected outlet still aligns its rotation to the body surface.
+- Ctrl+Z undoes the whole booster snap as one action.
+
+## Full release notes
+
+- Snap to car and Ctrl+Space now move every linked boost outlet by the same
+  offset as the selected outlet. The group keeps its spacing instead of
+  leaving the other outlets behind.
+- The selected outlet is still aligned and rotated to the local surface; the
+  linked outlets keep their own rotation and scale.
+- This applies to both **All outlets** and **Selected outlet + partner**
+  linking. HUD markers are never linked, and snapping without linking is
+  unchanged.
+- The status message reports when linked outlets moved with the snap, and
+  Ctrl+Z restores the whole group.
+- Add a smoke regression that snaps a linked four-outlet booster group and
+  asserts every outlet moved by the same offset and undo restores them.
+
+Validation: the mod-attachment smoke covers the linked snap and undo, and the
+unified smoke, unit tests and Windows/Linux/AnyLinux builds pass.
+
+Limitations: linked snapping translates the group as a whole; it does not fit
+each outlet to its own local curvature. Use Ctrl+Space on each outlet when each
+one needs its own surface alignment.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.4
 
 ## In-game summary
