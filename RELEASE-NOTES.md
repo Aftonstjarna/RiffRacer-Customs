@@ -1,3 +1,43 @@
+# RiffRacer Customs 0.3.4-beta.4
+
+## In-game summary
+
+- Chrome wheel-arch trim no longer spins with imported wheels.
+- Wheel and tire parts stay wheels; chrome stays on the body.
+- Re-import or re-export the car to correct existing wheels.
+
+## Full release notes
+
+- Classify imported parts by their source material before falling back to their
+  names. Parts using a wheel or tire material become rolling wheels; parts
+  using chrome or metal materials stay on the body, even when their names
+  contain "wheel".
+- This stops `SideChromewheel`, `BacksideChromewheel` and similar wheel-arch
+  moldings from being split across the four wheel groups and rotated with the
+  tires. Those pieces previously appeared as floating or misaligned chrome
+  around the wheels in game.
+- Glass and window parts keep priority, including glass that uses a chrome
+  material name.
+- Add a regression using the Impala source: the tire and bolt parts keep their
+  wheel role, the chrome wheel-arch trims become body metal, and no wheel node
+  carries a chrome material.
+- Existing packages keep their old roles until they are re-exported. Rebuilding
+  a template saved before this version keeps its saved part roles; re-import
+  the source GLB or correct the roles in Advanced.
+- Includes the paint-mask and native no-livery fixes from 0.3.4-beta.3.
+
+Validation: the owner Impala export converts nine donors, reimports the car and
+checks the new wheel roles and paint-mask slots. The unified, mod-attachment and
+importer-dialog smokes pass. Windows, Linux and AnyLinux packages are built and
+smoke-tested.
+
+Limitations: role suggestions still rely on names when a model has no wheel or
+chrome material names. Imported wheels use the donor wheel pivot positions; if
+a source model has unusual wheel origins, correct the roles and check the
+alignment in game.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.3
 
 ## In-game summary

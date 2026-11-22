@@ -426,8 +426,10 @@ supported stock collision widths against the oriented model at that scale;
 height and length break ties. It does not compare collision shape or handling.
 
 Assign each primitive to painted body, glass, metal/chrome, interior/plastic,
-wheels or ignore. Suggestions use names; review them in Advanced only when a
-part is wrong. **Fit to donor** uses four wheel groups to fit wheelbase and
+wheels or ignore. Suggestions use source materials before names: parts using a
+wheel or tire material become rolling wheels, while chrome and metal wheel-arch
+trim stays on the body even when its name contains "wheel". Review the roles in
+Advanced when a part is wrong. **Fit to donor** uses four wheel groups to fit wheelbase and
 track, or body length if no wheels are assigned. This may change proportions.
 With Fit off, source scale is retained and the model is centered and grounded.
 Donor wheel pivots are retained; their alignment with the body must be checked
