@@ -36,14 +36,17 @@ inline void rebuildFromTemplate(const Archive &stock,const CarTemplate &tpl,cons
         auto index=part.value("index",size_t(-1));if(index>=source.parts.size()){for(size_t i=0;i<source.parts.size();i++)if(source.parts[i].name==part.value("part","")&&source.parts[i].material==part.value("material","")){index=i;break;}}
         if(index<source.parts.size()&&part.contains("role"))source.parts[index].role=roleFromName(part.at("role").get<std::string>());
     }
+    // Templates saved before material-first classification kept wheel-arch
+    // chrome as rolling wheels. Demote that trim so it stays on the body.
+    for(auto &part:source.parts){auto name=lower(part.name),material=lower(part.material);bool trim=name.find("chromewheel")!=std::string::npos||name.find("wheelarch")!=std::string::npos;bool chrome=material.find("chrome")!=std::string::npos||material.find("metal")!=std::string::npos;if(part.role==importer::Wheels&&trim&&chrome)part.role=importer::Metal;}
     importer::Options options;auto values=recipe.value("options",Json::object());
     options.scale=values.value("source_scale",1.0);options.yaw=values.value("quarter_turns",0);options.zUp=values.value("z_up",false);options.fit=values.value("fit_to_donor",true);
     options.decimate=values.value("decimate",true);options.fitCollision=values.value("fit_collision",true);options.buildEffects=values.value("build_effects",true);options.neutralMask=values.value("neutral_mask",true);
     options.addPaint=values.value("add_paint",true);options.paintName=values.value("paint_name",std::string("Black"));options.allLocaleNames=values.value("all_locale_names",true);options.fitShadow=values.value("fit_shadow",true);
     options.quality=quality;
     auto plan=importer::defaultPlan(source,donor->id);
-    if(recipe.contains("materials")&&recipe["materials"].is_array())for(size_t i=0;i<plan.materials.size()&&i<recipe["materials"].size();i++){
-        const auto &sourceMaterial=recipe["materials"][i];auto &binding=plan.materials[i];
+    if(recipe.contains("materials")&&recipe["materials"].is_array())for(const auto &sourceMaterial:recipe["materials"]){
+        auto savedName=sourceMaterial.value("name",std::string());auto found=std::find_if(plan.materials.begin(),plan.materials.end(),[&](const importer::MaterialBinding &binding){return binding.name==savedName;});if(found==plan.materials.end())continue;auto &binding=*found;
         binding.category=sourceMaterial.value("category",binding.category);binding.templateMaterial=sourceMaterial.value("template",binding.templateMaterial);binding.texture=sourceMaterial.value("texture",binding.texture);
         binding.finish=sourceMaterial.value("finish",binding.finish);binding.importTexture=sourceMaterial.value("import_texture",binding.importTexture);binding.image=sourceMaterial.value("image",binding.image);binding.flags=sourceMaterial.value("flags",binding.flags);
         auto base=sourceMaterial.value("base_size",sourceMaterial.value("size",binding.size));binding.size=importer::qualityTextureSize(base,binding.category,quality);

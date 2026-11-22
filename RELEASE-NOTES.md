@@ -21,9 +21,10 @@
 - Add a regression using the Impala source: the tire and bolt parts keep their
   wheel role, the chrome wheel-arch trims become body metal, and no wheel node
   carries a chrome material.
-- Existing packages keep their old roles until they are re-exported. Rebuilding
-  a template saved before this version keeps its saved part roles; re-import
-  the source GLB or correct the roles in Advanced.
+- Rebuilding a template saved before this version also corrects wheel-arch
+  trim roles, and saved material settings are matched by name so they still
+  apply when role changes reorder the material plan. Packages already
+  installed still need to be rebuilt or re-exported.
 - Includes the paint-mask and native no-livery fixes from 0.3.4-beta.3.
 
 Validation: the owner Impala export converts nine donors, reimports the car and
@@ -32,9 +33,11 @@ importer-dialog smokes pass. Windows, Linux and AnyLinux packages are built and
 smoke-tested.
 
 Limitations: role suggestions still rely on names when a model has no wheel or
-chrome material names. Imported wheels use the donor wheel pivot positions; if
-a source model has unusual wheel origins, correct the roles and check the
-alignment in game.
+chrome material names. Older templates are corrected only for chrome names
+that contain "chromewheel" or "wheelarch"; review other wheel trim roles in
+Advanced. Imported wheels use the donor wheel pivot positions; if a source
+model has unusual wheel origins, correct the roles and check the alignment in
+game.
 
 ---
 
