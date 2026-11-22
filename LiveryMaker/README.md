@@ -415,9 +415,10 @@ file. The default **Simple** view asks only for the in-game car name, donor,
 export mode and detail level. The donor is ranked automatically by collision
 width; the model is fitted automatically and part roles are assigned from part
 and material names. **Add as a new car** is the safe default, leaving the stock
-car unchanged, and the new car ID is generated from the name. **Create mod and
-edit** previews the conversion automatically, then exports to a new folder and
-opens it in the paint/livery/HUD editor.
+car unchanged, and the new car ID is generated from the name. **Import and
+edit** previews the conversion and opens an unsaved working copy in the
+paint/livery/HUD editor. Nothing is written to your mods folder until you press
+**Export mod** and choose a folder.
 
 **Show advanced options** exposes source scale, orientation, Z-up correction,
 donor re-ranking, the editable authored car ID, fitting, collision, effects,
@@ -437,11 +438,11 @@ With Fit off, source scale is retained and the model is centered and grounded.
 Donor wheel pivots are retained; their alignment with the body must be checked
 in game. Without imported wheels, stock wheel geometry is retained.
 
-Changing settings invalidates the preview; **Create mod and edit** regenerates
-it before exporting. Source files and the game installation are not modified.
-Choose **Replace donor car** or **Add as a new car**; the latter requires ReRiff
-automatic car-slot support. Export subsequent editor adjustments to another
-folder and install only that final copy.
+Changing settings invalidates the preview; **Import and edit** regenerates it
+before opening the working copy. Source files and the game installation are not
+modified. Choose **Replace donor car** or **Add as a new car**; the latter
+requires ReRiff automatic car-slot support. Export the adjusted car with
+**Export mod**, choose a new folder, and install only that final copy.
 
 The converter imports base-color textures for chrome, front-chrome, interior and
 wheel-rim parts, and grille and headlight parts are classified separately from

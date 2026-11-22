@@ -1,3 +1,33 @@
+# RiffRacer Customs 0.3.4-beta.6
+
+## In-game summary
+
+- Model import no longer asks where to save the car.
+- The car opens as an unsaved working copy in the editor.
+- Choose a folder only when you press Export mod.
+
+## Full release notes
+
+- **Import 3D model** now confirms with **Import and edit** instead of opening a
+  save dialog. The converted car opens directly in the paint, livery and HUD
+  editor as a working copy.
+- The working copy lives in the system temporary folder. **Export mod** is the
+  first save prompt and writes the final mod folder you install.
+- All editor changes, templates, paint/livery exports and HUD adjustments work
+  on the working copy as before. Source files and the game installation are
+  still never modified.
+- The importer smoke now accepts the dialog and verifies that the returned
+  working copy reimports the authored car.
+
+Validation: the model-import smoke creates and reimports the working copy, and
+the unified, mod-attachment and unit tests pass. Windows, Linux and AnyLinux
+packages are built and smoke-tested.
+
+Limitations: closing the editor without exporting discards the working copy.
+The temporary folder is not cleaned automatically.
+
+---
+
 # RiffRacer Customs 0.3.4-beta.5
 
 ## In-game summary
