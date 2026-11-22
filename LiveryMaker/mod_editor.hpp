@@ -159,4 +159,13 @@ public:
         try{for(const auto &f:exported)write(stage/fs::u8path(f.first),f.second);fs::rename(stage,out);}catch(...){fs::remove_all(stage);throw;}
     }
 };
+// Imported cars use their donor's HUD atlas until the editor saves a style.
+inline Bytes hudAtlasFor(const ImportedMod &mod,const Archive &stock,const std::string &car){
+    try{return mod.assetBytes("graphics/be/hud/car/"+car+"/batchTextures.brres",stock);}catch(...){}
+    std::string donor;
+    try{auto mappings=mod.originMetadata().mappings();auto found=mappings.find(car);if(found!=mappings.end())donor=found->second;}catch(...){}
+    if(donor.empty()){auto recipe=std::find_if(mod.files.begin(),mod.files.end(),[](const auto &entry){return lower(entry.first)=="model-import.json";});if(recipe!=mod.files.end())try{auto parsed=Json::parse(std::string(recipe->second.begin(),recipe->second.end()));donor=parsed.value("donor_id",std::string());}catch(...){}}
+    require(donor.size()==3,"No HUD artwork found for "+car+" or its donor");
+    return mod.assetBytes("graphics/be/hud/car/"+donor+"/batchTextures.brres",stock);
+}
 }

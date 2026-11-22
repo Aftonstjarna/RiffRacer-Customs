@@ -227,7 +227,7 @@ class AttachmentEditor {
     void refreshMultiplier(){
         loadingMultiplier_=true;hudPreview_.reset();
         try{
-            auto found=hudEdits_.find(currentCar_);auto bytes=found==hudEdits_.end()?mod_.assetBytes(hudTexturePath(currentCar_),stock_):found->second;
+            auto found=hudEdits_.find(currentCar_);auto bytes=found==hudEdits_.end()?hudAtlasFor(mod_,stock_,currentCar_):found->second;
             hudPreview_=std::make_unique<CarHudPreview>(carHudPreview(bytes));
             gtk_combo_box_set_active(GTK_COMBO_BOX(multiplierStyle_),identifyMultiplierStyle(stock_,bytes)+1);gtk_widget_set_sensitive(multiplierStyle_,true);
             auto &multiplier=hudPreview_->multiplier;auto*pix=gdk_pixbuf_new(GDK_COLORSPACE_RGB,true,8,multiplier.width,multiplier.height);for(uint32_t y=0;y<multiplier.height;y++)std::copy_n(multiplier.pixels.data()+size_t(y)*multiplier.width*4,size_t(multiplier.width)*4,gdk_pixbuf_get_pixels(pix)+size_t(y)*gdk_pixbuf_get_rowstride(pix));gtk_image_set_from_pixbuf(GTK_IMAGE(multiplierSample_),pix);g_object_unref(pix);
@@ -242,7 +242,7 @@ class AttachmentEditor {
     // Compose the selected native multiplier and boost meter styles over the
     // imported atlas so changing one selector never discards the other.
     void rebuildHud(){
-        auto original=mod_.assetBytes(hudTexturePath(currentCar_),stock_);Bytes edited=original;
+        auto original=hudAtlasFor(mod_,stock_,currentCar_);Bytes edited=original;
         int multiplier=gtk_combo_box_get_active(GTK_COMBO_BOX(multiplierStyle_))-1,meter=gtk_combo_box_get_active(GTK_COMBO_BOX(meterStyle_))-1;
         if(multiplier>=0)edited=multiplierStyleBatch(edited,stockHudStyle(stock_,multiplier));
         if(meter>=0)edited=meterStyleBatch(edited,stockMeterStyle(stock_,meter));

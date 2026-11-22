@@ -2,9 +2,9 @@
 
 ## In-game summary
 
-- Model import no longer asks where to save the car.
-- The car opens as an unsaved working copy in the editor.
-- Choose a folder only when you press Export mod.
+- Model import opens an unsaved working copy; Export mod saves it.
+- Export mod is the first folder prompt for imported cars.
+- Custom cars now show HUD previews and style options.
 
 ## Full release notes
 
@@ -18,6 +18,12 @@
   still never modified.
 - The importer smoke now accepts the dialog and verifies that the returned
   working copy reimports the authored car.
+- Imported cars without their own HUD atlas now use their donor's HUD artwork
+  in the HUD tab. This enables the multiplier and boost meter previews and the
+  **Multiplier brackets** and **Boost meter shape** choices instead of leaving
+  them greyed out.
+- Choosing a HUD style saves the edited atlas for the custom car on export;
+  leaving the original in place keeps the donor artwork without adding a file.
 
 Validation: the model-import smoke creates and reimports the working copy, and
 the unified, mod-attachment and unit tests pass. Windows, Linux and AnyLinux
