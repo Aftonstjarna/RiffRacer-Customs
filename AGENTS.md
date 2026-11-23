@@ -2,7 +2,8 @@
 
 Riff Racer Customs is an authoring tool for Riff Racer, separate from the
 ReRiff client and server packages. Read and follow the ReRiff agent
-instructions at `/var/home/afton/.dev/ReRiff/AGENTS.md` when that checkout is
+instructions from the current ReRiff checkout
+([Aftonstjarna/ReRiff](https://github.com/Aftonstjarna/ReRiff)) when it is
 available. The applicable rules are mirrored below with Customs-specific notes;
 ReRiff-only rules are listed at the end.
 
@@ -26,11 +27,11 @@ ReRiff-only rules are listed at the end.
 
 ## Original-file reference
 
-- Use `/var/home/afton/Applications/SteamDepotDownloader/depots/351991/1687655/`
-  as the unmodified Windows game reference for file hashes and byte comparisons.
-  `packaging/vanilla-reference.json` records its executable/DLL SHA-256 hashes,
-  sizes and Steam depot/build/manifest identifiers. Compare working copies and
-  backups against this baseline before treating them as original game files.
+- Use ReRiff's recorded unmodified Windows game reference for file hashes and
+  byte comparisons. `packaging/vanilla-reference.json` records the executable
+  and DLL SHA-256 hashes, sizes and Steam depot/build/manifest identifiers.
+  Compare working copies and backups against this baseline before treating
+  them as original game files.
 - Compare exported packages against the stock archive and the selected donor.
   Never modify the game installation or stock archives to make an export work;
   keep authoring changes in the exported mod folder or working copy.
