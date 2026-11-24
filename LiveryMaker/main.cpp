@@ -103,21 +103,21 @@ struct App {
     }
     void mergeLiveryModsDialog(){
         require(bool(archive),"Open a game folder first");std::vector<fs::path> folders;
-        for(;;){auto path=choose("Choose a livery-only mod folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(path.empty())break;folders.push_back(fs::u8path(path));auto *q=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Add another livery mod?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer!=GTK_RESPONSE_YES)break;}
-        require(folders.size()>=2,"Choose at least two livery mods");auto out=choose("Choose a new folder for the merged livery mod",GTK_FILE_CHOOSER_ACTION_SAVE,"merged-livery-mod");if(out.empty())return;
+        for(;;){auto path=choose("Add livery mod",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(path.empty())break;folders.push_back(fs::u8path(path));auto *q=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Add another livery mod?");int answer=gtk_dialog_run(GTK_DIALOG(q));gtk_widget_destroy(q);if(answer!=GTK_RESPONSE_YES)break;}
+        require(folders.size()>=2,"Choose at least two livery mods");auto out=choose("Export merged livery mod",GTK_FILE_CHOOSER_ACTION_SAVE,"merged-livery-mod");if(out.empty())return;
         auto merged=mergeLiveryMods(*archive,folders);publishPaintMod(merged.files,merged.metadata,fs::u8path(out));
         message("Merged livery mod: "+out+". Remove or disable the original livery mods; install only this merged folder.");
     }
     void rebuildCarTemplate(){
         require(bool(archive),"Open a game folder first");
-        auto templatePath=choose("Choose a car template folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(templatePath.empty())return;
+        auto templatePath=choose("Open car template",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(templatePath.empty())return;
         auto tpl=loadCarTemplate(fs::u8path(templatePath));require(tpl.manifest.contains("import_recipe")&&tpl.manifest.at("import_recipe").is_object(),"This template has no import recipe; use Apply appearance template in the editor.");
-        auto glb=choose("Choose the source GLB for this template",GTK_FILE_CHOOSER_ACTION_OPEN);if(glb.empty())return;
-        auto *dialog=gtk_dialog_new_with_buttons("Rebuild car quality",GTK_WINDOW(window),GTK_DIALOG_MODAL,"Cancel",GTK_RESPONSE_CANCEL,"Continue",GTK_RESPONSE_ACCEPT,nullptr);
+        auto glb=choose("Open source GLB",GTK_FILE_CHOOSER_ACTION_OPEN);if(glb.empty())return;
+        auto *dialog=gtk_dialog_new_with_buttons("Rebuild car",GTK_WINDOW(window),GTK_DIALOG_MODAL,"Cancel",GTK_RESPONSE_CANCEL,"Continue",GTK_RESPONSE_ACCEPT,nullptr);
         auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_set_border_width(GTK_CONTAINER(box),10);auto *label=gtk_label_new("Choose the detail level for the rebuilt car. The template's roles, materials and appearance will be reapplied.");gtk_label_set_line_wrap(GTK_LABEL(label),true);gtk_box_pack_start(GTK_BOX(box),label,false,false,0);
         auto *quality=gtk_combo_box_text_new();for(auto *text:{"Light","Vanilla-matched (recommended)","High detail","Full source detail"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(quality),text);int preset=tpl.manifest.at("import_recipe").value("options",Json::object()).value("quality",1);gtk_combo_box_set_active(GTK_COMBO_BOX(quality),std::clamp(preset,0,3));gtk_box_pack_start(GTK_BOX(box),quality,false,false,0);gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),box);gtk_widget_show_all(dialog);
         int response=gtk_dialog_run(GTK_DIALOG(dialog));auto chosen=importer::Options::Quality(std::clamp(gtk_combo_box_get_active(GTK_COMBO_BOX(quality)),0,3));gtk_widget_destroy(dialog);if(response!=GTK_RESPONSE_ACCEPT)return;
-        auto out=choose("Choose a new folder for the rebuilt car",GTK_FILE_CHOOSER_ACTION_SAVE,"customs-rebuilt-car");if(out.empty())return;
+        auto out=choose("Export rebuilt car",GTK_FILE_CHOOSER_ACTION_SAVE,"customs-rebuilt-car");if(out.empty())return;
         rebuildFromTemplate(*archive,tpl,fs::u8path(glb),fs::u8path(out),chosen);
         AttachmentEditor(*archive,fs::u8path(out)).run(GTK_WINDOW(window));
     }
@@ -239,8 +239,8 @@ struct App {
             auto *dialog=gtk_message_dialog_new(GTK_WINDOW(window),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Paint export contains the full native paint configuration and runtime script, including all pending color and added-decal edits. Other paint-config mods will conflict rather than merge. Continue?");
             bool yes=gtk_dialog_run(GTK_DIALOG(dialog))==GTK_RESPONSE_YES;gtk_widget_destroy(dialog);if(!yes)return;
         }
-        auto p=choose("Choose a parent folder for the exported mod",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(p.empty())return;
-        auto *d=gtk_dialog_new_with_buttons("Name the mod folder",GTK_WINDOW(window),GTK_DIALOG_MODAL,"Cancel",GTK_RESPONSE_CANCEL,"Export",GTK_RESPONSE_ACCEPT,nullptr);
+        auto p=choose("Export mod",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(p.empty())return;
+        auto *d=gtk_dialog_new_with_buttons("Export mod",GTK_WINDOW(window),GTK_DIALOG_MODAL,"Cancel",GTK_RESPONSE_CANCEL,"Export",GTK_RESPONSE_ACCEPT,nullptr);
         auto *entry=gtk_entry_new();gtk_entry_set_text(GTK_ENTRY(entry),("reriff-paint-"+paints.at(chosen).car+"-"+std::to_string(paints.at(chosen).packIndex+1)).c_str());gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(d))),entry);gtk_widget_show_all(d);
         std::string name;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT)name=gtk_entry_get_text(GTK_ENTRY(entry));gtk_widget_destroy(d);if(name.empty())return;
         require(name!="." && name!=".." && name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")==std::string::npos,"Use letters, numbers, hyphens or underscores for the folder name");
@@ -291,19 +291,19 @@ struct App {
         auto *box=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(box),14);gtk_container_add(GTK_CONTAINER(window),box);
         auto *title=gtk_label_new("Edit car paints and liveries");gtk_box_pack_start(GTK_BOX(box),title,false,false,0);
         auto *imports=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),imports,false,false,0);
-        button(imports,"Import mod folder",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose mod folder containing assets",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
-        button(imports,"Import mod ZIP",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Choose loose mod ZIP",GTK_FILE_CHOOSER_ACTION_OPEN);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
-        auto *rebuild=button(imports,"Rebuild car from template",this,[](App &a){a.rebuildCarTemplate();});gtk_widget_set_tooltip_text(rebuild,"Rebuild a saved car template at a new quality. You will choose the source GLB and the editor verifies its hash.");
-        auto *merge=button(imports,"Merge livery mods",this,[](App &a){a.mergeLiveryModsDialog();});gtk_widget_set_tooltip_text(merge,"Combine livery-only mods that target different paints of the same car into one conflict-free package.");
+        button(imports,"Import mod folder",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Import mod folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
+        button(imports,"Import mod ZIP",this,[](App &a){require(bool(a.archive),"Open a game folder first");auto path=a.choose("Import mod ZIP",GTK_FILE_CHOOSER_ACTION_OPEN);if(!path.empty())AttachmentEditor(*a.archive,fs::u8path(path)).run(GTK_WINDOW(a.window));});
+        auto *rebuild=button(imports,"Rebuild car from template",this,[](App &a){a.rebuildCarTemplate();});gtk_widget_set_tooltip_text(rebuild,"Rebuilds a car template; verifies the source GLB hash.");
+        auto *merge=button(imports,"Merge livery mods",this,[](App &a){a.mergeLiveryModsDialog();});gtk_widget_set_tooltip_text(merge,"Combines livery-only mods for different paints of one car.");
         auto *row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row,false,false,0);
-        button(row,"Open game folder",this,[](App &a){auto p=a.choose("Game folder containing vfs.zip",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!p.empty())a.load(p);});
+        button(row,"Open game folder",this,[](App &a){auto p=a.choose("Open game folder",GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);if(!p.empty())a.load(p);});
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Car"),false,false,0);
         carCombo=gtk_combo_box_text_new();gtk_box_pack_start(GTK_BOX(row),carCombo,false,false,0);
         g_signal_connect(carCombo,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);a.guard([&]{a.selectCar();});}),this);
         gtk_box_pack_start(GTK_BOX(row),gtk_label_new("Paint"),false,false,0);
         combo=gtk_combo_box_text_new();gtk_box_pack_start(GTK_BOX(row),combo,false,false,0);g_signal_connect(combo,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);a.guard([&]{a.select();});}),this);
         auto *actions=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),actions,false,false,0);
-        editing.push_back(button(actions,"Import PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Import exact-size PNG artwork",GTK_FILE_CHOOSER_ACTION_OPEN);if(!p.empty()){a.testArtwork=false;a.update(loadPNG(fs::u8path(p),a.selected->texture.width,a.selected->texture.height));}}));
+        editing.push_back(button(actions,"Import PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Import PNG artwork",GTK_FILE_CHOOSER_ACTION_OPEN);if(!p.empty()){a.testArtwork=false;a.update(loadPNG(fs::u8path(p),a.selected->texture.width,a.selected->texture.height));}}));
         editing.push_back(button(actions,"Make test livery",this,[](App &a){require(bool(a.selected),"Open a game folder first");a.testArtwork=true;a.update(diagnostic(a.selected->texture));}));
         exportButton=button(actions,"Export mod",this,[](App &a){a.exportPackage();});gtk_widget_set_sensitive(exportButton,false);
         addDecalButton=button(actions,"Add PNG decal",this,[](App &a){a.addDecal();});gtk_widget_set_sensitive(addDecalButton,false);
@@ -316,12 +316,12 @@ struct App {
             gtk_grid_attach(GTK_GRID(paintGrid),label,(i%3)*2,i/3,1,1);gtk_grid_attach(GTK_GRID(paintGrid),color,(i%3)*2+1,i/3,1,1);
             colorButtons.push_back({keys[i],color});g_signal_connect(color,"color-set",G_CALLBACK(+[](GtkColorButton *button,gpointer p){auto &a=*static_cast<App*>(p);a.guard([&]{a.changeColor(GTK_WIDGET(button));});}),this);
         }
-        button(actions,"Reset this paint",this,[](App &a){a.resetPaint();});
+        button(actions,"Reset paint",this,[](App &a){a.resetPaint();});
         auto *row2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);gtk_box_pack_start(GTK_BOX(box),row2,false,false,0);
         mode=gtk_combo_box_text_new();for(auto *v:{"Painted + Livery","Car preview","Texture preview","Original","UV template"})gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(mode),v);gtk_combo_box_set_active(GTK_COMBO_BOX(mode),0);gtk_box_pack_start(GTK_BOX(row2),mode,false,false,0);
         g_signal_connect(mode,"changed",G_CALLBACK(+[](GtkComboBox*,gpointer p){auto &a=*static_cast<App*>(p);auto *s=gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(a.mode));if(s){a.view=s;g_free(s);}gtk_widget_queue_draw(a.canvas);}),this);
-        editing.push_back(button(row2,"Save artwork PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Save editable artwork",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName(a.testArtwork?"test":"livery").c_str());if(!p.empty())savePNG(fs::u8path(p),a.art);}));
-        editing.push_back(button(row2,"Save UV template",this,[](App &a){auto p=a.choose("Save all-mesh UV0 template",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName("uv").c_str());if(!p.empty())a.saveUV(p);}));
+        editing.push_back(button(row2,"Save artwork PNG",this,[](App &a){require(bool(a.selected),"Open a game folder first");auto p=a.choose("Save artwork PNG",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName(a.testArtwork?"test":"livery").c_str());if(!p.empty())savePNG(fs::u8path(p),a.art);}));
+        editing.push_back(button(row2,"Save UV template",this,[](App &a){auto p=a.choose("Save UV template",GTK_FILE_CHOOSER_ACTION_SAVE,a.exportFileName("uv").c_str());if(!p.empty())a.saveUV(p);}));
         auto *note=gtk_label_new("Drag the car to rotate • Scroll to zoom • Preview uses approximate lighting and decal blending");gtk_label_set_line_wrap(GTK_LABEL(note),true);gtk_box_pack_start(GTK_BOX(box),note,false,false,0);
         canvas=gtk_drawing_area_new();gtk_widget_set_size_request(canvas,320,320);gtk_box_pack_start(GTK_BOX(box),canvas,true,true,0);g_signal_connect(canvas,"draw",G_CALLBACK(+[](GtkWidget *w,cairo_t *cr,gpointer p)->gboolean{static_cast<App*>(p)->draw(cr,gtk_widget_get_allocated_width(w),gtk_widget_get_allocated_height(w));return FALSE;}),this);
         gtk_widget_add_events(canvas,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK|GDK_POINTER_MOTION_MASK|GDK_SCROLL_MASK|GDK_SMOOTH_SCROLL_MASK);
@@ -483,7 +483,7 @@ int main(int argc,char **argv) {
         }
         gtk_init(&argc,&argv);std::string folder=argc==2?argv[1]:rememberedFolder();fs::path mod;int width=1100,height=760;bool maximized=false;
         for(;;){
-            if(folder.empty()||!fs::exists(fs::u8path(folder)/"vfs.zip")){auto *chooser=gtk_file_chooser_dialog_new("Open your Riff Racer game folder",nullptr,GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,nullptr);if(gtk_dialog_run(GTK_DIALOG(chooser))!=GTK_RESPONSE_ACCEPT){gtk_widget_destroy(chooser);return 0;}auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));folder=value;g_free(value);gtk_widget_destroy(chooser);}
+            if(folder.empty()||!fs::exists(fs::u8path(folder)/"vfs.zip")){auto *chooser=gtk_file_chooser_dialog_new("Open game folder",nullptr,GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,"Cancel",GTK_RESPONSE_CANCEL,"Open",GTK_RESPONSE_ACCEPT,nullptr);if(gtk_dialog_run(GTK_DIALOG(chooser))!=GTK_RESPONSE_ACCEPT){gtk_widget_destroy(chooser);return 0;}auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));folder=value;g_free(value);gtk_widget_destroy(chooser);}
             try{Archive stock((fs::u8path(folder)/"vfs.zip").u8string());AttachmentEditor editor(stock,mod);try{rememberFolder(folder);}catch(const std::exception &e){std::cerr<<"Could not remember game folder: "<<e.what()<<'\n';}editor.windowWidth=width;editor.windowHeight=height;editor.maximized=maximized;editor.run(nullptr);if(!editor.restartRequested)return 0;width=editor.windowWidth;height=editor.windowHeight;maximized=editor.maximized;
                 if(editor.requestedAction==0){folder=editor.requestedPath;mod.clear();}else mod=editor.requestedAction==3?fs::path{}:fs::u8path(editor.requestedPath);
             }catch(const std::exception &e){showErrorDialog(nullptr,e.what());folder.clear();mod.clear();}
