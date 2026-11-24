@@ -1,3 +1,34 @@
+# RiffRacer Customs 0.3.5
+
+## In-game summary
+
+- UI labels now name their function instead of explaining it.
+- Tooltips are shorter and focus on the control's behavior.
+- Buttons, dialogs and fields use consistent action names.
+
+## Full release notes
+
+- Apply the new UI naming rule across the editor. Buttons and menu items name
+  the action or object, and instructions or rationale move to tooltips, status
+  messages or the guide.
+- Rename controls and dialogs for consistency: **Preview conversion**,
+  **Show car HUD**, **Fit to donor**, **Fit collision hull**, **Rebuild effect
+  shells**, **Neutral body paint mask**, **Donor car**, **Source uses Z-up**,
+  **Reset attachment** and **Set as default paint**.
+- Use action names for file and dialog titles: **Open game folder**,
+  **Import model**, **Open car template**, **Save car template**, **Export
+  paint/livery mod**, **Add livery mod**, **Export merged livery mod**,
+  **Export rebuilt car** and **Open source GLB**.
+- Shorten tooltips to the control's behavior and keep longer guidance in the
+  status line, help text or wiki.
+- No mod format, game data or editing behavior changes. Existing packages and
+  templates are unaffected.
+
+Validation: unit tests and the unified, mod-attachment and importer smokes
+pass. The stable update path from 0.3.4 is verified after publication.
+
+---
+
 # RiffRacer Customs 0.3.4
 
 ## In-game summary
