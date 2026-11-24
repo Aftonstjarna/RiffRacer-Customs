@@ -27,6 +27,11 @@ rules are listed at the end.
   installs. Keep build output, backups, logs and downloaded tools out of the
   tracked tree, and check free space before large builds or captures.
 - Comments explain constraints or non-obvious decisions, not task history.
+- For UX/UI text, name the function or object instead of explaining it in the
+  label. Buttons and menu items use a verb and object ("Import PNG livery",
+  "Export mod"), not instructions, consequences or rationale. Put guidance in a
+  short tooltip, status message or the wiki, and keep tooltips functional rather
+  than tutorial prose. Review labels and tooltips when adding UI.
 - Run the checks that validate the change and report what actually ran. Do not
   substitute a caveat for a check that could have been run.
 
