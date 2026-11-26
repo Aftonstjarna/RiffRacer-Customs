@@ -1,3 +1,35 @@
+# RiffRacer Customs 0.3.6-beta.2
+
+## In-game summary
+
+- Keep imported part colors when a model has distinct materials.
+- Food trucks and similar models keep their own textures and colors.
+- The editor preview shows average source part colors.
+
+## Full release notes
+
+- Add **Keep imported part colors** under Advanced. It creates one native
+  material per source material instead of mapping body parts to the car paint.
+- Use each source material's base-color texture, or a small solid texture built
+  from its `baseColorFactor`, including alpha.
+- Car paint and livery no longer affect those parts. The option is stored in
+  `model-import.json` and preserved by rebuilds.
+- Show per-source materials in the **Materials…** dialog and rebuild them from
+  templates.
+- Approximate imported part colors in the editor preview using the average
+  source texture color; textures themselves still need an in-game check.
+- Verify with `the_patty_wagon.glb`: 21 source materials, textures and solid
+  colors, import and template-rebuild tests, and the GUI import smoke.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Limitations: source alpha, metallic/roughness and lighting are approximated.
+The preview shows averaged colors rather than the full texture. Full detail
+still respects the native vertex budget.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.1
 
 ## In-game summary

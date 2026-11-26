@@ -36,7 +36,7 @@ inline PreviewProjection cameraProjection(const Model &model,int width,int heigh
 // Native EADB geometry/node transforms, with an approximate studio-light paint
 // ramp. The original D3D shader and environment reflections are not reproduced.
 inline void drawCar(cairo_t *cr,const Model &model,const PaintConfig &paint,
-                    const PaintSelection &selection,int width,int height,double yaw,double zoom,const Image *decal=nullptr,const Model *attachments=nullptr,int selectedNode=-1,double pitch=.30,PreviewProjection *projection=nullptr,double panX=0,double panY=0,PreviewHit *hit=nullptr,const CarHudPreview *hudPreview=nullptr,const Model *hudNodes=nullptr) {
+                    const PaintSelection &selection,int width,int height,double yaw,double zoom,const Image *decal=nullptr,const Model *attachments=nullptr,int selectedNode=-1,double pitch=.30,PreviewProjection *projection=nullptr,double panX=0,double panY=0,PreviewHit *hit=nullptr,const CarHudPreview *hudPreview=nullptr,const Model *hudNodes=nullptr,const std::map<std::string,std::array<double,3>> *materialColors=nullptr) {
     if(width<=0 || height<=0)return;
     // Bound raster cost using one scale for both axes; independent caps distort
     // the model when a wide or tall window stretches the raster back to fit.
@@ -65,7 +65,7 @@ inline void drawCar(cairo_t *cr,const Model &model,const PaintConfig &paint,
             for(int k=0;k<3;k++) {
                 if(body){double t=std::clamp(light*1.65,0.,1.65);color[k]=t<1?c0[k]*(1-t)+c1[k]*t:c1[k]*(2-t)+c2[k]*(t-1);color[k]+=spec[k]*std::pow(light,28)*.22;}
                 else if(wheel)color[k]=(a0[k]*(1-light)+a1[k]*light)*(.4+.6*light);
-                else color[k]=base[k]*(.35+.65*light);
+                else {std::array<double,3> c{base[0],base[1],base[2]};if(materialColors)for(auto &entry:*materialColors)if(name.rfind(entry.first,0)==0){c=entry.second;break;}color[k]=c[k]*(.35+.65*light);}
                 color[k]=std::clamp(color[k],0.,1.);
             }
             points.push_back({p.x,p.y,p.z,color,mesh.uv.at(i)[0],mesh.uv.at(i)[1],.4+.6*light,body && !wheel});

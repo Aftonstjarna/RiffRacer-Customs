@@ -197,7 +197,7 @@ class AttachmentEditor {
     void applyCarTemplateFrom(const fs::path &path){
         auto tpl=loadCarTemplate(path);auto authored=tpl.manifest.value("authored_id",std::string());require(authored==currentCar_,"Template is for car "+authored+"; select that car first");
         for(auto &entry:tpl.assets){auto asset="assets/"+entry.first;mod_.files[asset]=entry.second;const std::string prefix="graphics/vehicles/",suffix="/nodes.bdae";if(entry.first.rfind(prefix,0)==0&&entry.first.size()==prefix.size()+3+suffix.size()&&entry.first.substr(prefix.size()+3)==suffix){auto car=entry.first.substr(prefix.size(),3);mod_.cars[car]=std::make_unique<NodeTransforms>(entry.second);}}
-        labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);nameEdits_.clear();hudEdits_.clear();
+        labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();nameEdits_.clear();hudEdits_.clear();
         GtkTreeIter iter;if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(car_),&iter)){auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(car_));gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,localized(labels_,"car_"+currentCar_).c_str(),-1);}
         selectCar();refreshPaint();markEdited();message("Applied appearance template: "+path.u8string()+". Export a copy to save it.");
     }
@@ -305,7 +305,7 @@ class AttachmentEditor {
     void saveUV(){auto p=paintSelection();auto source=appearance_->imageTemplate(p);auto path=chooseArtwork(true,exportFileName(p,"uv"));if(path.empty())return;auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,source.texture.width,source.texture.height);auto *cr=cairo_create(surface);uv(cr,source.texture.width,source.texture.height);cairo_destroy(cr);auto status=cairo_surface_write_to_png(surface,path.c_str());cairo_surface_destroy(surface);require(status==CAIRO_STATUS_SUCCESS,"Could not save UV template");}
     void drawPreview(cairo_t *cr,int width,int height){
         cairo_set_source_rgb(cr,.07,.08,.10);cairo_paint(cr);if(!body_||!colors_)return;
-        if(view_<2||placement_){drawCar(cr,*body_,*colors_,{currentCar_,"","","",paintIndex_},width,height,yaw_,zoom_,view_==1?nullptr:decalPreview_.get(),placement_?&nodes_:nullptr,int(selected_),pitch_,&projection_,panX_,panY_,&hit_,showCarHud_?hudPreview_.get():nullptr,&nodes_);return;}
+        if(view_<2||placement_){drawCar(cr,*body_,*colors_,{currentCar_,"","","",paintIndex_},width,height,yaw_,zoom_,view_==1?nullptr:decalPreview_.get(),placement_?&nodes_:nullptr,int(selected_),pitch_,&projection_,panX_,panY_,&hit_,showCarHud_?hudPreview_.get():nullptr,&nodes_,&previewColors_);return;}
         std::unique_ptr<Image> original;const Image *image=decalPreview_.get();if(view_==3){auto p=paintSelection();if(!p.resource.empty()){auto target=targetFrom([&](const std::string &path){return mod_.assetBytes(path,stock_);},p.resource);original=std::make_unique<Image>(decodeDDS(target.texture));image=original.get();}else image=nullptr;}
         auto dimensions=appearance_->imageTemplate(paintSelection()).texture;double ratio=std::min(double(width)/dimensions.width,double(height)/dimensions.height)*.94,w=dimensions.width*ratio,h=dimensions.height*ratio;cairo_save(cr);cairo_translate(cr,(width-w)/2,(height-h)/2);cairo_rectangle(cr,0,0,w,h);cairo_clip(cr);
         for(int y=0;y<16;y++)for(int x=0;x<16;x++){double c=(x+y)%2?.3:.2;cairo_set_source_rgb(cr,c,c,c);cairo_rectangle(cr,x*w/16,y*h/16,w/16+1,h/16+1);cairo_fill(cr);}
@@ -522,9 +522,14 @@ class AttachmentEditor {
         }
         mod_.exportCopy(fs::u8path(path),files);unsaved_=false;message("Exported "+path+". Disable the original mod before installing this copy, then restart the game.");
     }
+    std::map<std::string,std::array<double,3>> previewColors_;
+    void refreshPreviewColors(){
+        previewColors_.clear();auto found=std::find_if(mod_.files.begin(),mod_.files.end(),[](const auto &entry){return lower(entry.first)=="model-import.json";});if(found==mod_.files.end())return;
+        try{auto parsed=Json::parse(std::string(found->second.begin(),found->second.end()));for(auto &material:parsed.value("materials",Json::array())){auto name=lower(material.value("name",std::string()));auto color=material.value("average_color",Json::array());if(!name.empty()&&color.is_array()&&color.size()==3)previewColors_[name]={color[0].get<double>(),color[1].get<double>(),color[2].get<double>()};}}catch(...){}
+    }
 public:
     bool restartRequested=false;int requestedAction=-1;std::string requestedPath;int windowWidth=1100,windowHeight=760;bool maximized=false;
-    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);}
+    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();}
     bool confirmUpdate(){
         if(!unsaved_)return true;
         auto *question=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Installing the update closes Riff Racer Customs. Adjustments that have not been exported will be lost. Continue?");

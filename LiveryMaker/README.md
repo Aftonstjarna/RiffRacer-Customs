@@ -453,6 +453,14 @@ bounding box. Material records are cloned from a suitable donor material,
 renamed, and pointed at the new texture. The import dialog lists the resulting
 texture names and sizes.
 
+**Keep imported part colors** under Advanced creates one native material per
+source material instead of mapping body parts to the car paint. Each material
+uses its base-color texture, or a small solid texture built from its
+`baseColorFactor`. The car's paint and livery do not affect those parts. This is
+intended for models with distinct colored pieces, such as a food truck. The
+editor preview uses each material's average source color; the actual texture
+shading needs an in-game check.
+
 **Detail level** chooses the polygon and texture budget:
 
 - **Light** uses about 20% of the source triangles, including the body, and
@@ -469,7 +477,8 @@ template, texture size (256, 512, 1024 or 2048), finish preset (template
 default, matte, satin, glossy or chrome) and whether to import the texture at
 all. A finish rewrites only the cloned material's specular and reflection
 parameters. Painted body panels stay on the native car-paint material, and
-glass and tyres keep native materials. Source metallic/roughness, normal,
+glass and tyres keep native materials, unless **Keep imported part colors** is
+on. Source metallic/roughness, normal,
 occlusion and emissive maps, vertex colors and base color factors are not
 converted. UV0 is retained, UV1 duplicates UV0, supplied
 normals are transformed correctly (or generated when absent), and tangent bases
