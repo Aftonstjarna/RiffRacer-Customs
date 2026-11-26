@@ -160,18 +160,19 @@ class AttachmentEditor {
     std::string paintToken()const {return lower(cfgValue(Json::parse(Config(colors_->bytes()).json())).at("Paints").at(currentCar_).at(paintIndex_).at("packName").get<std::string>());}
     void loadNames(){gtk_entry_set_text(GTK_ENTRY(carName_),localized(labels_,"car_"+currentCar_).c_str());gtk_entry_set_text(GTK_ENTRY(paintName_),localized(labels_,paintToken()).c_str());}
     void applyNames(){
-        auto proposed=nameEdits_;proposed["car_"+currentCar_]=gtk_entry_get_text(GTK_ENTRY(carName_));proposed[paintToken()]=gtk_entry_get_text(GTK_ENTRY(paintName_));
-        (void)renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},proposed,false,true);
-        nameEdits_=std::move(proposed);for(const auto &entry:nameEdits_)labels_[entry.first]=entry.second;
+        auto proposed=nameEdits_;auto carKey="car_"+currentCar_;try{auto mappings=mod_.originMetadata().mappings();auto found=mappings.find(currentCar_);if(found!=mappings.end())carKey="car_"+found->second;}catch(...){}
+        proposed[carKey]=gtk_entry_get_text(GTK_ENTRY(carName_));proposed[paintToken()]=gtk_entry_get_text(GTK_ENTRY(paintName_));
+        (void)renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},proposed,false,false);
+        nameEdits_=std::move(proposed);for(const auto &entry:nameEdits_)labels_[entry.first]=entry.second;labels_["car_"+currentCar_]=gtk_entry_get_text(GTK_ENTRY(carName_));
         for(auto *combo:{car_,paint_}){GtkTreeIter iter;auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(combo));if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(combo),&iter))gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,combo==car_?localized(labels_,"car_"+currentCar_).c_str():localized(labels_,paintToken()).c_str(),-1);}
         markEdited();message("In-game names updated for US and GB. Export a copy to save. Shared name tokens change together.");
     }
-    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();for(auto &entry:unlocks_->files())files[entry.first]=entry.second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_,false,true))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
+    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();for(auto &entry:unlocks_->files())files[entry.first]=entry.second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_,false,false))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
     std::map<std::string,Bytes> paintModFiles(const PaintSelection &p,bool includePaint=true) const {
         std::map<std::string,Bytes> files;
         if(includePaint&&colors_->changed())for(const auto &entry:colors_->files())files[entry.first]=entry.second;
         auto decal=appearance_->decal(p);if(decal)files[lower(decal->member)]=decal->batch;
-        if(includePaint){std::map<std::string,std::string> names;auto carToken="car_"+p.car,paintTokenName=paintToken();auto carEdit=nameEdits_.find(carToken);if(carEdit!=nameEdits_.end())names[carToken]=carEdit->second;auto paintEdit=nameEdits_.find(paintTokenName);if(paintEdit!=nameEdits_.end())names[paintTokenName]=paintEdit->second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},names,false,false)){require(entry.first.rfind("assets/",0)==0,"Unexpected string path");files[entry.first.substr(7)]=std::move(entry.second);}}
+        if(includePaint){std::map<std::string,std::string> names;auto carToken="car_"+p.car;try{auto mappings=mod_.originMetadata().mappings();auto found=mappings.find(p.car);if(found!=mappings.end())carToken="car_"+found->second;}catch(...){}auto paintTokenName=paintToken();auto carEdit=nameEdits_.find(carToken);if(carEdit!=nameEdits_.end())names[carToken]=carEdit->second;auto paintEdit=nameEdits_.find(paintTokenName);if(paintEdit!=nameEdits_.end())names[paintTokenName]=paintEdit->second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},names,false,false)){require(entry.first.rfind("assets/",0)==0,"Unexpected string path");files[entry.first.substr(7)]=std::move(entry.second);}}
         return files;
     }
     void saveCarTemplateTo(const fs::path &path){
@@ -191,7 +192,7 @@ class AttachmentEditor {
     void applyCarTemplateFrom(const fs::path &path){
         auto tpl=loadCarTemplate(path);auto authored=tpl.manifest.value("authored_id",std::string());require(authored==currentCar_,"Template is for car "+authored+"; select that car first");
         for(auto &entry:tpl.assets){auto asset="assets/"+entry.first;mod_.files[asset]=entry.second;const std::string prefix="graphics/vehicles/",suffix="/nodes.bdae";if(entry.first.rfind(prefix,0)==0&&entry.first.size()==prefix.size()+3+suffix.size()&&entry.first.substr(prefix.size()+3)==suffix){auto car=entry.first.substr(prefix.size(),3);mod_.cars[car]=std::make_unique<NodeTransforms>(entry.second);}}
-        labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();nameEdits_.clear();hudEdits_.clear();
+        labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});applyCarNameAliases();appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();nameEdits_.clear();hudEdits_.clear();
         GtkTreeIter iter;if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(car_),&iter)){auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(car_));gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,localized(labels_,"car_"+currentCar_).c_str(),-1);}
         selectCar();refreshPaint();refreshMaterials();markEdited();message("Applied appearance template: "+path.u8string()+". Export a copy to save it.");
     }
@@ -564,13 +565,14 @@ class AttachmentEditor {
         auto status=cairo_surface_write_to_png(surface,path.u8string().c_str());cairo_surface_destroy(surface);require(status==CAIRO_STATUS_SUCCESS,"Could not save the material UV template");message("Saved material UV template to "+path.u8string()+".");
     }
     std::map<std::string,std::array<double,3>> previewColors_;
+    void applyCarNameAliases(){try{addCarNameAliases(labels_,mod_.originMetadata().mappings());}catch(...){}}
     void refreshPreviewColors(){
         previewColors_.clear();auto found=std::find_if(mod_.files.begin(),mod_.files.end(),[](const auto &entry){return lower(entry.first)=="model-import.json";});if(found==mod_.files.end())return;
         try{auto parsed=Json::parse(std::string(found->second.begin(),found->second.end()));for(auto &material:parsed.value("materials",Json::array())){auto name=lower(material.value("name",std::string()));auto color=material.value("average_color",Json::array());if(!name.empty()&&color.is_array()&&color.size()==3)previewColors_[name]={color[0].get<double>(),color[1].get<double>(),color[2].get<double>()};}}catch(...){}
     }
 public:
     bool restartRequested=false;int requestedAction=-1;std::string requestedPath;int windowWidth=1100,windowHeight=760;bool maximized=false;
-    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();}
+    AttachmentEditor(const Archive &stock,const fs::path &path):stock_(stock),mod_(path,&stock){legacyOrigin_=!path.empty()&&std::none_of(mod_.files.begin(),mod_.files.end(),[](const auto&f){return lower(f.first)=="origin.txt";});labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});applyCarNameAliases();appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();}
     bool confirmUpdate(){
         if(!unsaved_)return true;
         auto *question=gtk_message_dialog_new(GTK_WINDOW(dialog_),GTK_DIALOG_MODAL,GTK_MESSAGE_QUESTION,GTK_BUTTONS_YES_NO,"Installing the update closes Riff Racer Customs. Adjustments that have not been exported will be lost. Continue?");

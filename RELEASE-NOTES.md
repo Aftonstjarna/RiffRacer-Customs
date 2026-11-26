@@ -1,3 +1,34 @@
+# RiffRacer Customs 0.3.6-beta.4
+
+## In-game summary
+
+- Custom car names no longer shift native token indices.
+- Names use the donor token and keep stock string order.
+- ReRiff creates the new car name without breaking stock names.
+
+## Full release notes
+
+- Package a custom car name on the donor's stock name token instead of adding a
+  new Common token. The stock token order and indices remain unchanged and the
+  package ships no modified `tokens.dat`.
+- ReRiff's car-slot composer creates the new native car token from the donor
+  token, so the custom car keeps its name while the stock donor keeps its own.
+- Keep the editor's custom car name readable with an in-memory alias to the
+  donor token. **Apply names**, paint mods and template rebuilds use the same
+  donor token.
+- Add regressions that custom exports keep stock `tokens.dat`, place the name
+  on the donor token, and still show the authored car name in the editor.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Limitations: custom cars require ReRiff car-slot composition; mounting a custom
+car package as a loose stock override would also rename the donor. Existing
+packages with an inserted `car_<id>` token remain readable by the editor but
+should be re-exported for safe stock token order.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.3
 
 ## In-game summary

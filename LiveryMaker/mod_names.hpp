@@ -12,6 +12,9 @@ inline std::u16string nameUTF16(const std::string &text){
         if(c<0x10000)out.push_back(char16_t(c));else{c-=0x10000;out.push_back(char16_t(0xd800+(c>>10)));out.push_back(char16_t(0xdc00+(c&1023)));}
     }return out;
 }
+inline void addCarNameAliases(std::map<std::string,std::string> &names,const std::map<std::string,std::string> &mappings){
+    for(const auto &mapping:mappings){auto custom=lower("car_"+mapping.first),donor=lower("car_"+mapping.second);if(custom==donor||names.count(custom))continue;auto found=names.find(donor);if(found!=names.end())names[custom]=found->second;}
+}
 inline int stringBucket(const std::string &name){
     uint32_t hash=5381;for(unsigned char c:name){require(c<128,"Name token must be ASCII");hash=hash*33+uint32_t(c&0xdf);}return int(hash&255);
 }

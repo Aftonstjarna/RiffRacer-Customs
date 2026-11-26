@@ -314,7 +314,10 @@ Drag the divider between the sidebar and preview to resize the viewport.
   instead. **Remove livery** clears the decal.
   **Reset paint and livery** restores that paint's imported appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
-  names**. This updates the US and GB English localized strings while retaining
+  names**. For a custom car the name is written to the donor's stock token;
+  ReRiff creates the native car token, and the stock token order and indices
+  stay unchanged. Packages do not ship a modified `tokens.dat`. This updates the
+  US and GB English localized strings while retaining
   internal IDs.
   Names sharing a localization token change together. UTF-8 names are converted
   to the native UTF-16 string bank; unrelated strings remain intact.
