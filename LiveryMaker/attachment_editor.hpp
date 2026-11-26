@@ -167,7 +167,7 @@ class AttachmentEditor {
         for(auto *combo:{car_,paint_}){GtkTreeIter iter;auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(combo));if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(combo),&iter))gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,combo==car_?localized(labels_,"car_"+currentCar_).c_str():localized(labels_,paintToken()).c_str(),-1);}
         markEdited();message("In-game names updated for US and GB. Export a copy to save. Shared name tokens change together.");
     }
-    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();for(auto &entry:unlocks_->files())files[entry.first]=entry.second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_,false,false))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
+    std::map<std::string,Bytes> extraFiles()const {auto files=appearance_->files();bool carPackage=false;try{carPackage=!mod_.originMetadata().mappings().empty();}catch(...){}for(auto &entry:unlocks_->files(!carPackage))files[entry.first]=entry.second;for(auto &entry:renamedStrings([&](const std::string &path){return mod_.assetBytes(path,stock_);},nameEdits_,false,false))files[entry.first]=std::move(entry.second);for(const auto&entry:hudEdits_)files["assets/"+hudTexturePath(entry.first)]=entry.second;return files;}
     std::map<std::string,Bytes> paintModFiles(const PaintSelection &p,bool includePaint=true) const {
         std::map<std::string,Bytes> files;
         if(includePaint&&colors_->changed())for(const auto &entry:colors_->files())files[entry.first]=entry.second;

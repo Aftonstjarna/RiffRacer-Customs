@@ -19,8 +19,10 @@ inline int stringBucket(const std::string &name){
     uint32_t hash=5381;for(unsigned char c:name){require(c<128,"Name token must be ASCII");hash=hash*33+uint32_t(c&0xdf);}return int(hash&255);
 }
 // Replace localized text only: retain native token IDs, order and other strings.
-// New car_* tokens can be added for authored IDs; paint tokens must already exist.
+// New Common tokens are unsafe because they shift native indices. Use the
+// donor token (or an empty localization bank) instead.
 template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const std::map<std::string,std::string> &changes,bool allLocales=false,bool addCarTokens=false){
+    (void)addCarTokens;
     if(changes.empty())return {};
     auto tokens=load("strings/tokens.dat");require(u32(tokens,0)==3&&u32(tokens,4)==2,"Unsupported tokens");auto count=u32(tokens,8);require(count>0&&count<=32,"Invalid groups");size_t at=12;
     std::vector<std::string> groups;std::vector<uint32_t> counts,caps,used(count,0);std::map<uint32_t,std::map<uint32_t,std::string>> edits;std::set<std::string> found;
@@ -30,7 +32,7 @@ template<class Load> std::map<std::string,Bytes> renamedStrings(Load load,const 
     while(at<tokens.size()){auto group=tokens[at++];require(group<count&&used[group]<counts[group],"Invalid token index");size_t zero=at;while(zero<tokens.size()&&tokens[zero])zero++;require(zero<tokens.size(),"Truncated token name");auto token=lower(std::string(tokens.begin()+at,tokens.begin()+zero));at=zero+1;list.push_back({group,used[group],0,token});positions[token]={group,used[group]};++used[group];}
     for(uint32_t i=0;i<count;i++)require(used[i]==counts[i],"Token count mismatch");
     std::vector<std::pair<std::string,std::string>> additions;
-    for(const auto &change:changes){auto foundToken=positions.find(change.first);if(foundToken!=positions.end()){edits[foundToken->second.first][foundToken->second.second]=change.second;}else if(addCarTokens&&change.first.rfind("car_",0)==0){additions.push_back(change);}else require(false,"Name token missing from imported localization");}
+    for(const auto &change:changes){auto foundToken=positions.find(change.first);if(foundToken!=positions.end()){edits[foundToken->second.first][foundToken->second.second]=change.second;}else require(false,"Name token missing from imported localization; use the donor token");}
     static const char *english[]={"us","gb"},*every[]={"us","gb","de","fr","es","it","br","ru"};const char **locales=allLocales?every:english;unsigned localeCount=allLocales?8:2;
     if(!additions.empty()){locales=every;localeCount=8;}
     std::map<std::string,Bytes> result;

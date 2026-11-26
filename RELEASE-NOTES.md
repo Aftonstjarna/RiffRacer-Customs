@@ -1,3 +1,32 @@
+# RiffRacer Customs 0.3.6-beta.5
+
+## In-game summary
+
+- Car packages no longer ship a conflicting unlock marker.
+- ReRiff regenerates unlocks from the composed car tables.
+- New car names stay on donor tokens with stock string order.
+
+## Full release notes
+
+- Omit `customs_unlocks.txt` from car packages. ReRiff regenerates the marker
+  from the composed `unlocks_pc.cfg` and `.luac`, so two cars with different
+  unlock rules no longer conflict.
+- Keep the marker for non-car packages that still rely on it.
+- Refuse to create a new Common localization token. A missing car-name token
+  now reports an error instead of shifting native Common indices; custom names
+  use the donor token.
+- Add a regression that a custom car package exports unlock config/Lua without
+  the per-mod marker.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Limitations: custom cars require the current ReRiff helper, which regenerates
+the unlock marker during composition. Older ReRiff clients may not register
+custom unlock rules from a package without the marker.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.4
 
 ## In-game summary

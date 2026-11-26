@@ -37,6 +37,6 @@ public:
         }
         auto fields=fieldsFor(value);auto&items=configNamed(tree_,"carUnlocks")["value"];require(i<items.size(),"Missing native unlock entry");items[i]["type"]=2;items[i]["value"]=fields;edits_[car]=value;
     }
-    std::map<std::string,Bytes> files()const{if(edits_.empty())return {};std::vector<ConfigAssignment> patches;for(auto&e:edits_){auto i=index(e.first);patches.push_back({{"carUnlocks",i},e.second});if(added_.count(e.first))patches.push_back({{"carNames",i},e.first});}auto cfg=configEncode(tree_),lua=configLuaPatch(lua_,patches);auto marker=std::string("reriff-customs-unlocks-v1\n")+sha(cfg)+"\n"+sha(lua)+"\n";return {{"assets/scripts/config/unlocks_pc.cfg",cfg},{"assets/scripts/config/unlocks_pc.luac",lua},{"assets/scripts/config/customs_unlocks.txt",Bytes(marker.begin(),marker.end())}};}
+    std::map<std::string,Bytes> files(bool includeManifest=true)const{if(edits_.empty())return {};std::vector<ConfigAssignment> patches;for(auto&e:edits_){auto i=index(e.first);patches.push_back({{"carUnlocks",i},e.second});if(added_.count(e.first))patches.push_back({{"carNames",i},e.first});}auto cfg=configEncode(tree_),lua=configLuaPatch(lua_,patches);auto marker=std::string("reriff-customs-unlocks-v1\n")+sha(cfg)+"\n"+sha(lua)+"\n";std::map<std::string,Bytes> result={{"assets/scripts/config/unlocks_pc.cfg",cfg},{"assets/scripts/config/unlocks_pc.luac",lua}};if(includeManifest)result["assets/scripts/config/customs_unlocks.txt"]=Bytes(marker.begin(),marker.end());return result;}
 };
 }
