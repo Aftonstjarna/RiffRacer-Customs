@@ -306,10 +306,12 @@ Drag the divider between the sidebar and preview to resize the viewport.
   paint; and `<car>-test.png` after **Make test livery**. **Save UV template**
   suggests `<car>-uv.png`. Names are lowercased with spaces and punctuation
   replaced by hyphens. Each edited paint gets an unused texture
-  ID, preserving shared stock or imported liveries. **Add livery template**
-  creates a transparent decal with cyan UV outlines for a paint that has none;
-  export it with **Save PNG / blank template**, use it as a guide layer, then
-  import the finished livery over it. **Remove livery** clears the decal.
+  ID, preserving shared stock or imported liveries. **Export livery template**
+  writes a transparent PNG with cyan UV outlines to a folder you choose; it
+  does not change the paint. Use it as a guide layer, then import the finished
+  livery with **Import PNG livery**. Cars without a livery/car-paint material
+  report that the template is empty; use their **Save material UV template**
+  instead. **Remove livery** clears the decal.
   **Reset paint and livery** restores that paint's imported appearance.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
   names**. This updates the US and GB English localized strings while retaining
@@ -386,9 +388,12 @@ different source replaces the current session after prompting about any
 unexported changes. Window size and
 maximized state carry over. Importing no longer opens a second editor window.
 
-The **Livery** tab includes **Add livery template**, **Make test livery**,
+The **Livery** tab includes **Export livery template**, **Make test livery**,
 **Save UV template**, and **Export paint/livery mod**, alongside PNG
-import/save and remove. The paint-mod export writes a standalone package
+import/save and remove. Its **Material texture** section selects one source
+material, imports or saves that material's PNG, and writes a per-material UV
+template at the texture's own size. This is the readable path for models with
+many source materials, such as the Patty Wagon. The paint-mod export writes a standalone package
 containing only the selected livery texture and, when **Include paint
 configuration** is checked, the paint configuration and names. It uses the
 `assets/` plus `livery-maker.json` format without `origin.txt` or a runtime

@@ -1,3 +1,36 @@
+# RiffRacer Customs 0.3.6-beta.3
+
+## In-game summary
+
+- Export livery templates to a folder instead of onto the car.
+- Edit imported part textures and save per-material UV templates.
+- The Patty Wagon now has readable per-material templates.
+
+## Full release notes
+
+- Change **Add livery template** to **Export livery template**. It writes a
+  transparent PNG with UV outlines to a folder you choose and does not add a
+  decal or change the paint. The button is always available.
+- Report when a car has no livery or car-paint UVs instead of exporting an empty
+  template; use its material templates instead.
+- Add a **Material texture** section to the Livery tab. Select a source material,
+  then **Import material PNG**, **Save material PNG** or **Save material UV
+  template**. Material UV templates are generated at the material texture's own
+  size with only that material's UV islands.
+- Material PNG import replaces the texture in the car atlas, preserves the
+  texture format and mip chain, and updates the approximate preview color.
+- Add smoke coverage for template export without changing the livery, material
+  PNG export/import and non-empty material UV templates.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Limitations: material templates list only materials whose textures exist in the
+car atlas. Alpha and lighting are approximated in the preview; verify the
+exported textures in game.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.2
 
 ## In-game summary

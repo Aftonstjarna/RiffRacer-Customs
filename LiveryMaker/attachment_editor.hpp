@@ -119,7 +119,7 @@ class AttachmentEditor {
         loadingPaint_=false;auto decal=appearance_->decal(p);decalPreview_.reset();
         if(decal)decalPreview_=std::make_unique<Image>(decodeDDS(decal->texture));
         auto source=appearance_->imageTemplate(p);auto text=std::to_string(source.texture.width)+" × "+std::to_string(source.texture.height)+" PNG • "+(decal?"Livery present":"No livery")+"\nPNG import affects only this paint.";
-        if(addDecalButton_)gtk_widget_set_sensitive(addDecalButton_,!decal);
+        if(addDecalButton_)gtk_widget_set_sensitive(addDecalButton_,true);
         gtk_label_set_text(GTK_LABEL(liveryInfo_),text.c_str());gtk_widget_queue_draw(canvas_);
     }
     static std::string paintKey(const PaintSelection &p){return p.car+"/"+std::to_string(p.packIndex);}
@@ -149,14 +149,8 @@ class AttachmentEditor {
         if(action==7){saveUV();return;}
         if(action==8){exportPaintMod();return;}
         auto p=paintSelection();
-        if(action==5||action==6){
-            auto source=appearance_->imageTemplate(p);if(action==5)require(!appearance_->decal(p),"This paint already has a decal");
-            exportKinds_[paintKey(p)]=action==5?"template":"test";
-            appearance_->importPNG(p,action==6?diagnostic(source.texture):uvGuide(source.texture));markEdited();refreshPaint();
-            if(action==5)message("Livery template with UV guide added. Save PNG suggests "+exportFileName(p,"template")+"; import the finished livery to replace it.");
-            else message("Test livery applied. Save PNG suggests "+exportFileName(p,"test")+".");
-            return;
-        }
+        if(action==5){auto path=choosePNG("Export livery template",true,exportFileName(p,"template").c_str());if(path.empty())return;exportLiveryTemplate(fs::u8path(path));message("Exported livery template to "+path+".");return;}
+        if(action==6){auto source=appearance_->imageTemplate(p);exportKinds_[paintKey(p)]="test";appearance_->importPNG(p,diagnostic(source.texture));markEdited();refreshPaint();message("Test livery applied. Save PNG suggests "+exportFileName(p,"test")+".");return;}
         if(action==2||action==3)exportKinds_.erase(paintKey(p));
         if(action==2)appearance_->remove(p);else if(action==3)appearance_->reset(p);else appearance_->makeDefault(p);
         markEdited();refreshPaint();if(action==4)message("Default appearance updated in the first paint slot. Existing saved paint selections are unchanged.");
@@ -199,7 +193,7 @@ class AttachmentEditor {
         for(auto &entry:tpl.assets){auto asset="assets/"+entry.first;mod_.files[asset]=entry.second;const std::string prefix="graphics/vehicles/",suffix="/nodes.bdae";if(entry.first.rfind(prefix,0)==0&&entry.first.size()==prefix.size()+3+suffix.size()&&entry.first.substr(prefix.size()+3)==suffix){auto car=entry.first.substr(prefix.size(),3);mod_.cars[car]=std::make_unique<NodeTransforms>(entry.second);}}
         labels_=displayNamesFrom([&](const std::string &name){return mod_.assetBytes(name,stock_);});appearance_=std::make_unique<ModAppearance>(mod_,stock_,labels_);colors_=appearance_->colors.get();unlocks_=std::make_unique<UnlockConfig>(mod_,stock_);refreshPreviewColors();nameEdits_.clear();hudEdits_.clear();
         GtkTreeIter iter;if(gtk_combo_box_get_active_iter(GTK_COMBO_BOX(car_),&iter)){auto *model=gtk_combo_box_get_model(GTK_COMBO_BOX(car_));gtk_list_store_set(GTK_LIST_STORE(model),&iter,0,localized(labels_,"car_"+currentCar_).c_str(),-1);}
-        selectCar();refreshPaint();markEdited();message("Applied appearance template: "+path.u8string()+". Export a copy to save it.");
+        selectCar();refreshPaint();refreshMaterials();markEdited();message("Applied appearance template: "+path.u8string()+". Export a copy to save it.");
     }
     void saveCarTemplateDialog(){
         auto p=paintSelection();std::string name=exportBaseName(p)+"-car-template";auto *d=gtk_file_chooser_dialog_new("Save car template",GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_SAVE,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,nullptr);gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(d),true);gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),name.c_str());
@@ -264,12 +258,12 @@ class AttachmentEditor {
         for(const auto &mesh:body_->meshes)for(size_t i=0;i+2<mesh.indices.size();i+=3){for(int j=0;j<3;j++){auto v=mesh.uv.at(mesh.indices[i+j]);if(j==0)cairo_move_to(cr,v[0]*width,v[1]*height);else cairo_line_to(cr,v[0]*width,v[1]*height);}cairo_close_path(cr);}
         cairo_stroke(cr);
     }
-    void uvBoundaries(cairo_t *cr,double width,double height,double lineWidth=1,double alpha=.8){
+    void uvBoundaries(cairo_t *cr,double width,double height,double lineWidth=1,double alpha=.8,int onlyMaterial=-1){
         if(!body_)return;
         cairo_set_source_rgba(cr,.1,.8,1,alpha);cairo_set_line_width(cr,lineWidth);
         for(const auto &mesh:body_->meshes){
-            const auto &material=body_->materials.at(mesh.material);bool livery=false;for(const auto &texture:material.value("textures",Json::array()))if(texture.is_string()&&lower(texture.get<std::string>()).find("livery")!=std::string::npos){livery=true;break;}
-            if(!livery&&lower(material.value("name",std::string())).rfind("carpaint",0)!=0)continue;
+            if(onlyMaterial>=0&&int(mesh.material)!=onlyMaterial)continue;
+            if(onlyMaterial<0){const auto &material=body_->materials.at(mesh.material);bool livery=false;for(const auto &texture:material.value("textures",Json::array()))if(texture.is_string()&&lower(texture.get<std::string>()).find("livery")!=std::string::npos){livery=true;break;}if(!livery&&lower(material.value("name",std::string())).rfind("carpaint",0)!=0)continue;}
             struct Edge{int count=0;std::array<float,4> uv{};};std::map<std::array<long long,4>,Edge> edges;
             auto quantize=[](float value){return (long long)std::llround(double(value)*100000.0);};
             for(size_t i=0;i+2<mesh.indices.size();i+=3){
@@ -302,6 +296,7 @@ class AttachmentEditor {
         }
         cairo_surface_destroy(surface);return image;
     }
+    void exportLiveryTemplate(const fs::path &path){auto source=appearance_->imageTemplate(paintSelection());auto image=uvGuide(source.texture);size_t ink=0;for(size_t i=3;i<image.pixels.size();i+=4)if(image.pixels[i])ink++;require(ink>0,"No livery or car-paint UVs; use Save material UV template for this car");savePNG(path,image);}
     void saveUV(){auto p=paintSelection();auto source=appearance_->imageTemplate(p);auto path=chooseArtwork(true,exportFileName(p,"uv"));if(path.empty())return;auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,source.texture.width,source.texture.height);auto *cr=cairo_create(surface);uv(cr,source.texture.width,source.texture.height);cairo_destroy(cr);auto status=cairo_surface_write_to_png(surface,path.c_str());cairo_surface_destroy(surface);require(status==CAIRO_STATUS_SUCCESS,"Could not save UV template");}
     void drawPreview(cairo_t *cr,int width,int height){
         cairo_set_source_rgb(cr,.07,.08,.10);cairo_paint(cr);if(!body_||!colors_)return;
@@ -507,7 +502,7 @@ class AttachmentEditor {
         const auto &model=mod_.cars.at(currentCar_)->originalModel();
         for(size_t i=0;i<model.nodes.size();i++)if(editableAttachment(model.nodes[i].name)){auto label=attachmentLabel(model.nodes[i].name);gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(node_),std::to_string(i).c_str(),label.c_str());}
         gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(linkPartner_));for(size_t i=0;i<model.nodes.size();i++)if(model.nodes[i].name.rfind("nos",0)==0)gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(linkPartner_),std::to_string(i).c_str(),attachmentLabel(model.nodes[i].name).c_str());
-        gtk_combo_box_set_active(GTK_COMBO_BOX(node_),0);refreshNodes();refreshMultiplier();
+        gtk_combo_box_set_active(GTK_COMBO_BOX(node_),0);refreshNodes();refreshMultiplier();refreshMaterials();
     }
     void exportCopy(){
         auto incompatible=mod_.incompatibleOrigins();
@@ -521,6 +516,52 @@ class AttachmentEditor {
             markEdited();files["assets/graphics/vehicles/"+currentCar_+"/nodes.bdae"]=mod_.cars.at(currentCar_)->bytes();
         }
         mod_.exportCopy(fs::u8path(path),files);unsaved_=false;message("Exported "+path+". Disable the original mod before installing this copy, then restart the game.");
+    }
+    struct MaterialTarget {size_t material;std::string name,texture;unsigned width=0,height=0;};
+    std::vector<MaterialTarget> materialTargets_;
+    GtkWidget *materialCombo_{},*materialImport_{},*materialSave_{},*materialUV_{};
+    std::string materialAtlasPath() const {return "graphics/vehicles/"+currentCar_+"/textures/batchtextures.brres";}
+    std::vector<Texture> materialAtlasTextures() const {return decodeTextures(mod_.assetBytes(materialAtlasPath(),stock_));}
+    void refreshMaterials(){
+        if(!materialCombo_)return;
+        materialTargets_.clear();
+        gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(materialCombo_));
+        if(body_)try{auto atlas=materialAtlasTextures();std::set<std::string> labels;
+            for(size_t i=0;i<body_->materials.size();i++){auto &material=body_->materials[i];std::string slot;
+                for(auto &texture:material.value("textures",Json::array())){if(!texture.is_string())continue;auto value=lower(texture.get<std::string>());if(value.size()>4&&(value.substr(value.size()-4)==".tga"||value.substr(value.size()-4)==".dds")){slot=value.substr(0,value.size()-4);break;}}
+                if(slot.empty())continue;
+                auto found=std::find_if(atlas.begin(),atlas.end(),[&](const Texture &texture){return texture.name==slot;});
+                if(found==atlas.end())continue;
+                auto name=material.value("name",slot);if(name.empty())name=slot;auto label=name;for(int suffix=2;!labels.insert(label).second;suffix++)label=name+" #"+std::to_string(suffix);
+                materialTargets_.push_back({i,label,slot,found->width,found->height});gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(materialCombo_),std::to_string(materialTargets_.size()-1).c_str(),label.c_str());
+            }
+        }catch(...){}
+        gtk_combo_box_set_active(GTK_COMBO_BOX(materialCombo_),0);
+        bool any=!materialTargets_.empty();
+        for(auto *button:{materialImport_,materialSave_,materialUV_})if(button)gtk_widget_set_sensitive(button,any);
+    }
+    const MaterialTarget &materialTarget() const {int index=materialCombo_?gtk_combo_box_get_active(GTK_COMBO_BOX(materialCombo_)):-1;require(index>=0&&size_t(index)<materialTargets_.size(),"Select a material texture");return materialTargets_.at(index);}
+    std::string choosePNG(const char *title,bool save,const char *suggested=nullptr){
+        auto *d=gtk_file_chooser_dialog_new(title,GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_SAVE,"Cancel",GTK_RESPONSE_CANCEL,"Save",GTK_RESPONSE_ACCEPT,nullptr);
+        if(!save){gtk_widget_destroy(d);d=gtk_file_chooser_dialog_new(title,GTK_WINDOW(dialog_),GTK_FILE_CHOOSER_ACTION_OPEN,"Cancel",GTK_RESPONSE_CANCEL,"Import",GTK_RESPONSE_ACCEPT,nullptr);}
+        else{gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(d),true);if(suggested)gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(d),suggested);}
+        std::string path;if(gtk_dialog_run(GTK_DIALOG(d))==GTK_RESPONSE_ACCEPT){auto *value=gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(d));path=value;g_free(value);}gtk_widget_destroy(d);return path;
+    }
+    void materialPNG(bool save,const fs::path &chosen={}){
+        auto target=materialTarget();auto atlas=materialAtlasTextures();auto found=std::find_if(atlas.begin(),atlas.end(),[&](const Texture &texture){return texture.name==target.texture;});require(found!=atlas.end(),"Material texture is missing from the car atlas");
+        auto base=exportBaseName(paintSelection())+"-"+exportSlug(target.name,"material")+"-material.png";
+        if(save){auto path=chosen.empty()?fs::u8path(choosePNG("Save material PNG",true,base.c_str())):chosen;if(path.empty())return;savePNG(path,decodeDDS(*found));message("Saved material texture to "+path.u8string()+".");return;}
+        auto path=chosen.empty()?fs::u8path(choosePNG("Import material PNG",false)):chosen;if(path.empty())return;auto image=loadPNG(path,found->width,found->height);
+        const char *fourcc=textures::hasAlpha(image)?"DXT5":"DXT1";auto dds=textures::buildDDS(image,fourcc);Texture updated=*found;updated.fourcc=fourcc;updated.width=image.width;updated.height=image.height;updated.flags=textures::hasAlpha(image)?2:updated.flags;updated.mips=u32(dds,28);updated.caps=u32(dds,112);updated.dds=std::move(dds);
+        mod_.files[lower("assets/"+materialAtlasPath())]=textures::withTexture(mod_.assetBytes(materialAtlasPath(),stock_),updated);
+        auto key=lower(target.name);std::array<double,3> average{1,1,1};double total=0;for(size_t i=0;i<image.pixels.size();i+=4){double a=image.pixels[i+3]/255.;average[0]+=image.pixels[i]/255.*a;average[1]+=image.pixels[i+1]/255.*a;average[2]+=image.pixels[i+2]/255.*a;total+=a;}if(total>0)for(auto &c:average)c/=total;for(auto &entry:previewColors_)if(key.rfind(entry.first,0)==0)entry.second=average;
+        markEdited();gtk_widget_queue_draw(canvas_);message("Material texture updated for "+target.name+". Export a copy to save.");
+    }
+    void materialUV(const fs::path &chosen={}){
+        auto target=materialTarget();auto path=chosen.empty()?fs::u8path(choosePNG("Save material UV template",true,(exportBaseName(paintSelection())+"-"+exportSlug(target.name,"material")+"-uv.png").c_str())):chosen;if(path.empty())return;
+        auto *surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,target.width,target.height);require(cairo_surface_status(surface)==CAIRO_STATUS_SUCCESS,"Could not create the material UV template");auto *cr=cairo_create(surface);
+        cairo_set_operator(cr,CAIRO_OPERATOR_SOURCE);cairo_set_source_rgba(cr,0,0,0,0);cairo_paint(cr);cairo_set_operator(cr,CAIRO_OPERATOR_OVER);uvBoundaries(cr,target.width,target.height,std::max(1.0,double(std::min(target.width,target.height))/1024),1,int(target.material));cairo_destroy(cr);cairo_surface_flush(surface);
+        auto status=cairo_surface_write_to_png(surface,path.u8string().c_str());cairo_surface_destroy(surface);require(status==CAIRO_STATUS_SUCCESS,"Could not save the material UV template");message("Saved material UV template to "+path.u8string()+".");
     }
     std::map<std::string,std::array<double,3>> previewColors_;
     void refreshPreviewColors(){
@@ -557,7 +598,7 @@ public:
         buildMigration(controls);
         buildFallback(controls);
         notebook_=gtk_notebook_new();gtk_notebook_set_scrollable(GTK_NOTEBOOK(notebook_),true);gtk_box_pack_start(GTK_BOX(controls),notebook_,false,false,0);
-        auto addPaintAction=[&](GtkWidget *box,const char *label,int id){auto *b=gtk_button_new_with_label(label);gtk_box_pack_start(GTK_BOX(box),b,false,false,0);if(id==5){addDecalButton_=b;gtk_widget_set_tooltip_text(b,"Creates a transparent livery template with UV outlines.");}if(id==8)gtk_widget_set_tooltip_text(b,"Exports the selected paint and livery without the car model.");g_object_set_data(G_OBJECT(b),"paint-action",GINT_TO_POINTER(id));g_signal_connect(b,"clicked",G_CALLBACK(+[](GtkButton *button,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{a.paintAction(GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"paint-action")));});}),this);};
+        auto addPaintAction=[&](GtkWidget *box,const char *label,int id){auto *b=gtk_button_new_with_label(label);gtk_box_pack_start(GTK_BOX(box),b,false,false,0);if(id==5){addDecalButton_=b;gtk_widget_set_tooltip_text(b,"Exports a transparent livery template with UV outlines.");}if(id==8)gtk_widget_set_tooltip_text(b,"Exports the selected paint and livery without the car model.");g_object_set_data(G_OBJECT(b),"paint-action",GINT_TO_POINTER(id));g_signal_connect(b,"clicked",G_CALLBACK(+[](GtkButton *button,gpointer data){auto &a=*static_cast<AttachmentEditor*>(data);a.guard([&]{a.paintAction(GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"paint-action")));});}),this);};
         auto *paintTab=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(paintTab),6);
         gtk_box_pack_start(GTK_BOX(paintTab),gtk_label_new("In-game car name"),false,false,0);carName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(carName_),80);gtk_box_pack_start(GTK_BOX(paintTab),carName_,false,false,0);
         gtk_box_pack_start(GTK_BOX(paintTab),gtk_label_new("In-game paint name"),false,false,0);paintName_=gtk_entry_new();gtk_entry_set_max_length(GTK_ENTRY(paintName_),80);gtk_box_pack_start(GTK_BOX(paintTab),paintName_,false,false,0);
@@ -572,7 +613,12 @@ public:
         auto *applyTemplate=gtk_button_new_with_label("Apply appearance template…");gtk_box_pack_start(GTK_BOX(paintTab),applyTemplate,false,false,0);gtk_widget_set_tooltip_text(applyTemplate,"Applies saved paint, livery, unlocks, names, HUD and attachment changes.");g_signal_connect(applyTemplate,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto&a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.applyCarTemplateDialog();});}),this);
         auto *liveryTab=gtk_box_new(GTK_ORIENTATION_VERTICAL,6);gtk_container_set_border_width(GTK_CONTAINER(liveryTab),6);
         liveryInfo_=gtk_label_new("");gtk_label_set_line_wrap(GTK_LABEL(liveryInfo_),true);gtk_label_set_max_width_chars(GTK_LABEL(liveryInfo_),32);gtk_box_pack_start(GTK_BOX(liveryTab),liveryInfo_,false,false,0);
-        addPaintAction(liveryTab,"Import PNG livery",0);addPaintAction(liveryTab,"Add livery template",5);addPaintAction(liveryTab,"Save PNG / blank template",1);addPaintAction(liveryTab,"Save UV template",7);addPaintAction(liveryTab,"Make test livery",6);addPaintAction(liveryTab,"Export paint/livery mod",8);addPaintAction(liveryTab,"Remove livery",2);
+        addPaintAction(liveryTab,"Import PNG livery",0);addPaintAction(liveryTab,"Export livery template",5);addPaintAction(liveryTab,"Save PNG / blank template",1);addPaintAction(liveryTab,"Save UV template",7);addPaintAction(liveryTab,"Make test livery",6);addPaintAction(liveryTab,"Export paint/livery mod",8);addPaintAction(liveryTab,"Remove livery",2);
+        gtk_box_pack_start(GTK_BOX(liveryTab),gtk_separator_new(GTK_ORIENTATION_HORIZONTAL),false,false,6);gtk_box_pack_start(GTK_BOX(liveryTab),gtk_label_new("Material texture"),false,false,0);
+        materialCombo_=gtk_combo_box_text_new();gtk_box_pack_start(GTK_BOX(liveryTab),materialCombo_,false,false,0);gtk_widget_set_tooltip_text(materialCombo_,"Material whose texture and UV layout are edited.");
+        materialImport_=gtk_button_new_with_label("Import material PNG");gtk_box_pack_start(GTK_BOX(liveryTab),materialImport_,false,false,0);gtk_widget_set_tooltip_text(materialImport_,"Replaces the selected material texture in the car atlas.");g_signal_connect(materialImport_,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.materialPNG(false);});}),this);
+        materialSave_=gtk_button_new_with_label("Save material PNG");gtk_box_pack_start(GTK_BOX(liveryTab),materialSave_,false,false,0);gtk_widget_set_tooltip_text(materialSave_,"Exports the selected material texture.");g_signal_connect(materialSave_,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.materialPNG(true);});}),this);
+        materialUV_=gtk_button_new_with_label("Save material UV template");gtk_box_pack_start(GTK_BOX(liveryTab),materialUV_,false,false,0);gtk_widget_set_tooltip_text(materialUV_,"Writes UV outlines for the selected material at its texture size.");g_signal_connect(materialUV_,"clicked",G_CALLBACK(+[](GtkButton*,gpointer p){auto &a=*static_cast<AttachmentEditor*>(p);a.guard([&]{a.materialUV();});}),this);
         attachmentControls_=gtk_box_new(GTK_ORIENTATION_VERTICAL,10);gtk_container_set_border_width(GTK_CONTAINER(attachmentControls_),6);
         auto *placementHint=gtk_label_new("Attachment placement (Ctrl+Z undo • Ctrl+Shift+Z reset)");gtk_label_set_line_wrap(GTK_LABEL(placementHint),true);gtk_label_set_max_width_chars(GTK_LABEL(placementHint),32);gtk_box_pack_start(GTK_BOX(attachmentControls_),placementHint,false,false,6);
         node_=gtk_combo_box_text_new();gtk_box_pack_start(GTK_BOX(attachmentControls_),node_,false,false,0);
@@ -664,7 +710,8 @@ public:
         gtk_entry_set_text(GTK_ENTRY(unlockArtist_),"GUI Artist");gtk_entry_set_text(GTK_ENTRY(unlockTitle_),"GUI Title");gtk_spin_button_set_value(GTK_SPIN_BUTTON(packPrice_),321);gtk_button_clicked(GTK_BUTTON(unlockApply_));require(unlocks_->get("alf").value("songUnlock",std::string())=="GUI Title"&&colors_->price(paintSelection())==321,"Unlock/price button did not apply");
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"bui");require(gtk_widget_get_sensitive(carPrice_)&&!gtk_widget_get_sensitive(unlockTitle_),"Shop price field sensitivity");gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"alf");require(std::string(gtk_entry_get_text(GTK_ENTRY(unlockTitle_)))=="GUI Title"&&gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(packPrice_))==321,"Switching cars lost unlock/price edits");
         auto p=paintSelection();require(p.car=="alf","Stock car selection failed");require(exportFileName(p,"uv")=="pulse-uv.png"&&exportFileName(p,"template")=="pulse-template.png"&&exportFileName(p,"test")=="pulse-test.png"&&exportFileName(p,"livery")=="pulse-arctic-livery.png","Car-name export filenames failed");auto source=appearance_->imageTemplate(p);
-        if(!appearance_->decal(p)){require(gtk_widget_get_sensitive(addDecalButton_),"Clear livery action disabled");gtk_button_clicked(GTK_BUTTON(addDecalButton_));require(bool(appearance_->decal(p)),"Clear livery guide not created");auto guide=decodeDDS(appearance_->decal(p)->texture);size_t clearPixels=0,inkPixels=0;bool cyan=false;for(size_t i=0;i<guide.pixels.size();i+=4){if(guide.pixels[i+3]==0){clearPixels++;continue;}inkPixels++;if(guide.pixels[i+2]>guide.pixels[i]+40&&guide.pixels[i+1]>guide.pixels[i]+40)cyan=true;}savePNG(out/"clear-livery-guide.png",guide);require(clearPixels>inkPixels&&inkPixels>0&&cyan,"Livery template is missing its transparent layer or UV outlines");}
+        {require(gtk_widget_get_sensitive(addDecalButton_),"Export livery template disabled");require(std::string(gtk_button_get_label(GTK_BUTTON(addDecalButton_)))=="Export livery template","Livery template label changed");auto guidePath=out/"livery-template.png";exportLiveryTemplate(guidePath);require(!appearance_->decal(p),"Exporting a livery template changed the livery");auto guide=loadPNG(fs::u8path(guidePath.u8string()),source.texture.width,source.texture.height);size_t clearPixels=0,inkPixels=0;bool cyan=false;for(size_t i=0;i<guide.pixels.size();i+=4){if(guide.pixels[i+3]==0){clearPixels++;continue;}inkPixels++;if(guide.pixels[i+2]>guide.pixels[i]+40&&guide.pixels[i+1]>guide.pixels[i]+40)cyan=true;}require(clearPixels>inkPixels&&inkPixels>0&&cyan,"Livery template is missing its transparent layer or UV outlines");}
+        {require(!materialTargets_.empty(),"No material textures exposed");auto target=materialTarget();auto materialPng=out/"material.png";materialPNG(true,materialPng);require(fs::is_regular_file(materialPng),"Material PNG export failed");materialPNG(false,materialPng);auto materialUv=out/"material-uv.png";materialUV(materialUv);auto guide=loadPNG(materialUv,target.width,target.height);size_t ink=0;for(size_t i=0;i<guide.pixels.size();i+=4)if(guide.pixels[i+3])ink++;require(ink>0,"Material UV template is empty");}
         appearance_->importPNG(p,diagnostic(source.texture));colors_->set(p,"col0",{25,50,75});refreshPaint();
         auto templatePath=out/"car-template-test";saveCarTemplateTo(templatePath);auto templateCheck=loadCarTemplate(templatePath);require(templateCheck.manifest.value("authored_id","")==p.car&&templateCheck.assets.count("scripts/config/paint_pc.cfg"),"Car template save failed");auto savedColor=colors_->get(p,"col0",3);colors_->set(p,"col0",{1,2,3});refreshPaint();applyCarTemplateFrom(templatePath);require(colors_->get(p,"col0",3)==savedColor,"Car template appearance was not reapplied");
         auto paintFiles=paintModFiles(p);require(!paintFiles.empty(),"Paint-only export has no files");for(const auto &entry:paintFiles)require(entry.first.rfind("graphics/vehicles/"+p.car+"/",0)!=0,"Paint-only export included the car model");auto liveryOnly=paintModFiles(p,false);require(!liveryOnly.empty()&&liveryOnly.count("scripts/config/paint_pc.cfg")==0,"Livery-only export included paint configuration");auto paintMeta=publishPaintMod(paintFiles,{{"test","paint-only"}},out/"paint-only-mod");require(!fs::exists(out/"paint-only-mod/origin.txt")&&fs::exists(out/"paint-only-mod/livery-maker.json")&&fs::is_directory(out/"paint-only-mod/assets"),"Paint-only package layout failed");require(paintMeta["tool"]=="reriff-livery-maker-v1"&&!paintMeta.contains("origin_sha256")&&!paintMeta.contains("dat_sha256"),"Paint-only package metadata failed");auto liveryMeta=publishPaintMod(liveryOnly,{{"paint_configuration_modified",false}},out/"livery-only-mod");require(!fs::exists(out/"livery-only-mod/assets/scripts/config/paint_pc.cfg")&&fs::exists(out/"livery-only-mod/livery-maker.json"),"Livery-only package included paint configuration");require(liveryMeta["paint_configuration_modified"]==false,"Livery-only metadata changed");publishPaintMod(liveryOnly,{{"paint_configuration_modified",false}},out/"livery-only-mod");
@@ -695,7 +742,7 @@ public:
     }
     // Actual widget signal path, used by the packaged GUI smoke check.
     void smoke(GtkWindow *parent,const fs::path &output){build(parent);require(!placement_&&gtk_notebook_get_current_page(GTK_NOTEBOOK(notebook_))==0,"HUD tab opened automatically");
-        {GList *items=gtk_container_get_children(GTK_CONTAINER(gtk_widget_get_parent(addDecalButton_))),*node=items;int index=0,clearIndex=-1,importIndex=-1;for(;node;node=node->next,++index){auto *child=GTK_WIDGET(node->data);if(child==addDecalButton_)clearIndex=index;if(GTK_IS_BUTTON(child)){const char *label=gtk_button_get_label(GTK_BUTTON(child));if(label&&std::string(label)=="Import PNG livery")importIndex=index;}}g_list_free(items);require(std::string(gtk_button_get_label(GTK_BUTTON(addDecalButton_)))=="Add livery template","Livery template label changed");require(importIndex>=0&&clearIndex==importIndex+1,"Livery template is not directly below import livery");}gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook_),hudPage_);require(placement_,"HUD tab did not enable placement");if(mod_.cars.count("dod"))gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"dod");
+        {GList *items=gtk_container_get_children(GTK_CONTAINER(gtk_widget_get_parent(addDecalButton_))),*node=items;int index=0,clearIndex=-1,importIndex=-1;for(;node;node=node->next,++index){auto *child=GTK_WIDGET(node->data);if(child==addDecalButton_)clearIndex=index;if(GTK_IS_BUTTON(child)){const char *label=gtk_button_get_label(GTK_BUTTON(child));if(label&&std::string(label)=="Import PNG livery")importIndex=index;}}g_list_free(items);require(std::string(gtk_button_get_label(GTK_BUTTON(addDecalButton_)))=="Export livery template","Livery template label changed");require(importIndex>=0&&clearIndex==importIndex+1,"Livery template is not directly below import livery");}gtk_notebook_set_current_page(GTK_NOTEBOOK(notebook_),hudPage_);require(placement_,"HUD tab did not enable placement");if(mod_.cars.count("dod"))gtk_combo_box_set_active_id(GTK_COMBO_BOX(car_),"dod");
         for(int wait=0;wait<30;wait++){while(gtk_events_pending())gtk_main_iteration();g_usleep(1000);}
         auto *initial=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,gtk_widget_get_allocated_width(canvas_),gtk_widget_get_allocated_height(canvas_));auto *initialCr=cairo_create(initial);gtk_widget_draw(canvas_,initialCr);cairo_destroy(initialCr);cairo_surface_destroy(initial);
         // Drive the connected GTK handlers, not a separate transform implementation.
