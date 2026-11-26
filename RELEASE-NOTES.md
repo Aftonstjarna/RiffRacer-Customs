@@ -1,3 +1,35 @@
+# RiffRacer Customs 0.3.6-beta.1
+
+## In-game summary
+
+- Import static models that include animations.
+- Dense imports simplify to fit the game's vertex limit.
+- Patty Wagon and similar animated models now import.
+
+## Full release notes
+
+- Ignore glTF animations when the model has no skin. The default node
+  transforms become the static pose, so animated body/wheel nodes no longer
+  block import. Skinned models are still refused.
+- Enforce the native 16-bit vertex budget during conversion. Dense models are
+  simplified progressively at Light, Vanilla and High detail; Full keeps source
+  detail and reports the limit. `model-import.json` records
+  `vertex_limit_decimated`.
+- Verify with `the_patty_wagon.glb`: 346,532 source triangles, no skins, five
+  animations. Vanilla imports with the Bolt donor and four wheel nodes;
+  output is 48,220 vertices and 71,118 triangles after the budget pass.
+- Add regressions for accepting an animated static GLB and rejecting a skinned
+  one, and update the importer guide.
+
+Validation: unit tests, the owner Impala test and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Limitations: skinning is not converted; only the default node pose is used.
+Dense models lose detail when reduced to the native vertex budget. Full detail
+still fails for models above that budget.
+
+---
+
 # RiffRacer Customs 0.3.5
 
 ## In-game summary

@@ -14,13 +14,13 @@ loose-asset loader. Copy that folder into the game's `mods` directory and restar
 
 ## Linux
 
-Download `RiffRacer-Customs-0.3.5-anylinux-x86_64.AppImage` from
-[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.3.5),
+Download `RiffRacer-Customs-0.3.6-beta.1-anylinux-x86_64.AppImage` from
+[Releases](https://github.com/Aftonstjarna/RiffRacer-Customs/releases/tag/v0.3.6-beta.1),
 make it executable in your file manager, and open it. Or run:
 
 ```sh
-chmod +x RiffRacer-Customs-0.3.5-anylinux-x86_64.AppImage
-./RiffRacer-Customs-0.3.5-anylinux-x86_64.AppImage
+chmod +x RiffRacer-Customs-0.3.6-beta.1-anylinux-x86_64.AppImage
+./RiffRacer-Customs-0.3.6-beta.1-anylinux-x86_64.AppImage
 ```
 
 The AnyLinux package includes GTK, glibc and fonts using
