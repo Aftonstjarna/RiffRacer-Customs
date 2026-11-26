@@ -338,7 +338,7 @@ int main(int argc,char **argv) {
     try {
         prepareRuntime();
         if(argc==5&&std::string(argv[1])=="--smoke-migration"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());AttachmentEditor(stock,fs::u8path(argv[3])).smokeMigration(fs::u8path(argv[4]));return 0;}
-        if(argc==5&&std::string(argv[1])=="--smoke-model-import"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());auto output=ModelImportDialog(stock,fs::u8path(argv[3])).run(nullptr,fs::u8path(argv[4]));require(!output.empty()&&fs::exists(output/"assets"),"Import did not create a working copy");ImportedMod imported(output,&stock);require(imported.cars.count("spn"),"Working copy did not reimport the authored car");std::cout<<"Model import dialog, validation, working copy and reimport passed\n";return 0;}
+        if(argc==5&&std::string(argv[1])=="--smoke-model-import"){gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());auto output=ModelImportDialog(stock,fs::u8path(argv[3])).run(nullptr,fs::u8path(argv[4]));require(!output.empty()&&fs::exists(output/"assets"),"Import did not create a working copy");ImportedMod imported(output,&stock);require(imported.cars.count("spn"),"Working copy did not reimport the authored car");AttachmentEditor(stock,output).smokeImportedNames(fs::u8path(std::string(argv[4])+"-names"));std::cout<<"Model import dialog, validation, working copy and reimport passed\n";return 0;}
 
         if(argc==4&&std::string(argv[1])=="--smoke-unified") {gtk_init(&argc,&argv);Archive stock((fs::u8path(argv[2])/"vfs.zip").u8string());AttachmentEditor(stock,{}).smokeUnified(fs::u8path(argv[3]));return 0;}
         if(argc==5 && std::string(argv[1])=="--smoke-mod-attachments") {

@@ -1,3 +1,33 @@
+# RiffRacer Customs 0.3.6-beta.6
+
+## In-game summary
+
+- Renamed custom cars now update every imported language.
+- Names still use the donor token with stock string order.
+- Packages keep no tokens.dat and no per-mod unlock marker.
+
+## Full release notes
+
+- Retain the import's **Apply names to all languages** choice. A later **Apply
+  names** updates all eight string banks for that imported car instead of only
+  US and GB, so its garage name stays consistent across languages.
+- Keep the safe name packaging from beta.4/5: the name is written to the donor's
+  stock token, ReRiff creates the native car token, and packages ship no
+  modified `tokens.dat`. Stock token order and indices are unchanged.
+- Keep omitting `customs_unlocks.txt` from car packages; ReRiff regenerates it
+  from the composed unlock tables.
+- Add an importer regression that renames the exported car, exports it again,
+  and verifies the US, German and Russian banks all show the new name.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+Note: an export made before beta.6 can have different names per language. Set
+the wanted name in the editor, click **Apply names**, and export again to make
+all locales match.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.5
 
 ## In-game summary

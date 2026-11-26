@@ -316,9 +316,9 @@ Drag the divider between the sidebar and preview to resize the viewport.
 - Edit the **In-game car name** and **In-game paint name**, then click **Apply
   names**. For a custom car the name is written to the donor's stock token;
   ReRiff creates the native car token, and the stock token order and indices
-  stay unchanged. Packages do not ship a modified `tokens.dat`. This updates the
-  US and GB English localized strings while retaining
-  internal IDs.
+  stay unchanged. Packages do not ship a modified `tokens.dat`. This updates US
+  and GB English, or all eight banks when the car was imported with **Apply
+  names to all languages**, while retaining internal IDs.
   Names sharing a localization token change together. UTF-8 names are converted
   to the native UTF-16 string bank; unrelated strings remain intact.
 - **Use this paint as default** copies the selected appearance into the native
@@ -530,17 +530,20 @@ donor already has nine paints, the new paint replaces the donor's default paint
 pack instead of opening a new slot. The 64-bit Lua is unchanged.
 
 **Apply names to all languages** (default on) writes the car and extra-paint
-names into all eight string banks; turn it off to update only US and GB. When the
-GLB contains author, licence or source metadata, the package also includes an
-`ATTRIBUTION.txt`.
+names into all eight string banks; turn it off to update only US and GB. An
+imported car keeps this choice, so **Apply names** later updates the same banks.
+When the GLB contains author, licence or source metadata, the package also
+includes an `ATTRIBUTION.txt`.
 
 **Fit shadow and garage box** (default on) scales the donor ground shadow and the
 garage selection box to the imported wheel width and body length/height.
 
 **Add as a new car** uses the authored three-letter ID from the import dialog
 (default: the donor ID). Any three lowercase letters or digits work, for example
-`spn`; the importer adds a matching `car_<id>` name token for every locale in
-the exported package and leaves the stock archive untouched. Custom cars get
+`spn`; the importer writes the name to the donor's stock token for every locale
+selected by **Apply names to all languages** and leaves the stock archive
+untouched. The package ships no modified `tokens.dat`; ReRiff's composer creates
+the native `car_<id>` token from the donor token. Custom cars get
 their own unlock slot, so the Paint tab can set available/play/shop/artist
 rules and the car price; the donor's unlock rule is used as the starting point.
 Donor paint packs that use a livery have their decal assets copied and renamed
