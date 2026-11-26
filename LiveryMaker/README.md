@@ -475,8 +475,12 @@ converted. UV0 is retained, UV1 duplicates UV0, supplied
 normals are transformed correctly (or generated when absent), and tangent bases
 are regenerated. Missing UVs become zero UVs, so add a proper UV layout before
 authoring a PNG livery. Required glTF extensions, compressed/sparse/normalized
-accessors, animations, skins and morph targets are refused. External .gltf files
-and FBX are not supported; export a static GLB first.
+accessors, skins and morph targets are refused. Animations are ignored and the
+node transforms become the static pose. Models above the native 16-bit vertex
+budget are simplified progressively at Light, Vanilla and High detail; Full
+keeps source detail and reports the limit instead. The `model-import.json`
+report records `vertex_limit_decimated`. External .gltf files and FBX are not
+supported; export a GLB first.
 
 The native writer clones donor material and parameter records, patches names and
 texture slots, rebuilds the material, parameter and texture tables, and decodes
