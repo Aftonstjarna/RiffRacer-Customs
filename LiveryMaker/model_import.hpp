@@ -265,11 +265,13 @@ inline std::vector<Texture> neutralPaintMasks(const Model &native,const std::vec
  return masks;
 }
 
-inline Bytes fitCollision(const Bytes &original,double targetXL,double targetXH,double targetZL,double targetZH,double targetYTop){
+inline Bytes fitCollision(const Bytes &original,double targetXL,double targetXH,double targetZL,double targetZH,double targetYTop,double *usedTop=nullptr){
  require(original.size()>20&&u16(original,0)==279,"Unsupported collision hull");uint16_t vertices=u16(original,2);uint32_t triangles=u32(original,4);require(vertices>3&&triangles>0,"Invalid collision hull");size_t body=20+size_t(vertices)*12+size_t(triangles)*6;require(body<=original.size(),"Truncated collision hull");
  P lo{1e30,1e30,1e30},hi{-1e30,-1e30,-1e30};for(uint16_t i=0;i<vertices;i++){P p{f32(original,20+size_t(i)*12),f32(original,24+size_t(i)*12),f32(original,28+size_t(i)*12)};for(int k=0;k<3;k++){lo[k]=std::min(lo[k],p[k]);hi[k]=std::max(hi[k],p[k]);}}
- require(hi[0]>lo[0]&&hi[1]>lo[1]&&hi[2]>lo[2]&&targetXH>targetXL&&targetZH>targetZL&&targetYTop>lo[1],"Degenerate collision fit");
- double sx=(targetXH-targetXL)/(hi[0]-lo[0]),sz=(targetZH-targetZL)/(hi[2]-lo[2]),sy=(targetYTop-lo[1])/(hi[1]-lo[1]);
+ require(hi[0]>lo[0]&&hi[1]>lo[1]&&hi[2]>lo[2]&&targetXH>targetXL&&targetZH>targetZL,"Degenerate collision fit");
+ // Keep the donor hull height so pickup, token and handling triggers keep
+ // base-car behavior. The target top is reported for diagnostics only.
+ (void)targetYTop;double sx=(targetXH-targetXL)/(hi[0]-lo[0]),sz=(targetZH-targetZL)/(hi[2]-lo[2]),sy=1;
  auto map=[&](P p){return P{targetXL+(p[0]-lo[0])*sx,lo[1]+(p[1]-lo[1])*sy,targetZL+(p[2]-lo[2])*sz};};
  Bytes out=original;for(uint16_t i=0;i<vertices;i++){P p=map({f32(original,20+size_t(i)*12),f32(original,24+size_t(i)*12),f32(original,28+size_t(i)*12)});for(int k=0;k<3;k++)floatAt(out,20+size_t(i)*12+k*4,p[k]);}
  // The tail stores the broadphase AABB as six floats (minimum and size, or minimum and maximum).
@@ -282,6 +284,7 @@ inline Bytes fitCollision(const Bytes &original,double targetXL,double targetXH,
   if(sizeForm){P size{f32(original,body+box+12),f32(original,body+box+16),f32(original,body+box+20)};for(int k=0;k<3;k++)floatAt(out,body+box+12+k*4,size[k]*(k==0?sx:k==1?sy:sz));}
   else{P mappedMax=map({f32(original,body+box+12),f32(original,body+box+16),f32(original,body+box+20)});for(int k=0;k<3;k++)floatAt(out,body+box+12+k*4,mappedMax[k]);}
  }
+ if(usedTop)*usedTop=hi[1];
  return out;
 }
 inline Bytes clonePaintCar(const Bytes &cfg,const std::string &donor,const std::string &target){
@@ -356,7 +359,7 @@ inline void exportModel(const Archive&archive,const Source&s,const Donor&donor,c
   if(paintAdded){renames[paintToken]=o.paintName.empty()?"Black":o.paintName;result.report["paint"]={{"token",paintToken},{"name",o.paintName.empty()?"Black":o.paintName},{"index",paintAdded->index},{"overwrote_default",paintAdded->overwroteDefault},{"cloned",authored!=donor.id},{"lua_patched",luaPatched}};}
   else if(authored!=donor.id)result.report["paint"]={{"cloned",true},{"extra","skipped: donor already uses the nine-pack limit"},{"lua_patched",luaPatched}};
   else result.report["paint"]={{"skipped",o.addPaint?"donor already uses the nine-pack limit":"extra paint disabled"}};}
- if(o.fitCollision){auto &r=result.report;require(r.contains("wheel_lo")&&r.contains("wheel_hi")&&r.contains("vehicle_lo")&&r.contains("vehicle_hi"),"Missing collision fit bounds");auto wl=r["wheel_lo"],wh=r["wheel_hi"],vl=r["vehicle_lo"],vh=r["vehicle_hi"];auto hull=stockAsset(archive,donorPrefix+"collision.hzc");double xl=wl[0].get<double>(),xh=wh[0].get<double>();if(!(xh>xl)){xl=vl[0].get<double>();xh=vh[0].get<double>();}assets["assets/"+prefix+"collision.hzc"]=fitCollision(hull,xl,xh,vl[2].get<double>(),vh[2].get<double>(),vh[1].get<double>());r["collision_fit"]={{"target_x",Json::array({wl[0],wh[0]})},{"target_z",Json::array({vl[2],vh[2]})},{"target_top",vh[1]}};}
+ if(o.fitCollision){auto &r=result.report;require(r.contains("wheel_lo")&&r.contains("wheel_hi")&&r.contains("vehicle_lo")&&r.contains("vehicle_hi"),"Missing collision fit bounds");auto wl=r["wheel_lo"],wh=r["wheel_hi"],vl=r["vehicle_lo"],vh=r["vehicle_hi"];auto hull=stockAsset(archive,donorPrefix+"collision.hzc");double xl=wl[0].get<double>(),xh=wh[0].get<double>();if(!(xh>xl)){xl=vl[0].get<double>();xh=vh[0].get<double>();}double collisionTop=vh[1].get<double>();assets["assets/"+prefix+"collision.hzc"]=fitCollision(hull,xl,xh,vl[2].get<double>(),vh[2].get<double>(),vh[1].get<double>(),&collisionTop);r["collision_fit"]={{"target_x",Json::array({wl[0],wh[0]})},{"target_z",Json::array({vl[2],vh[2]})},{"target_top",collisionTop},{"body_top",vh[1]}};}
  if(o.fitShadow){auto &r=result.report;auto vl=r["vehicle_lo"],vh=r["vehicle_hi"];double xl=vl[0].get<double>(),xh=vh[0].get<double>(),yl=vl[1].get<double>(),yh=vh[1].get<double>(),zl=vl[2].get<double>(),zh=vh[2].get<double>();assets["assets/"+prefix+"shadow.bdae"]=fitShadow(stockAsset(archive,donorPrefix+"shadow.bdae"),xl,xh,zl,zh);assets["assets/"+prefix+"nodes.bdae"]=fitGarageBox(stockAsset(archive,donorPrefix+"nodes.bdae"),xl,xh,yl,yh,zl,zh);r["shadow_box_fit"]=true;}
  for(auto&f:renamedStrings([&](const std::string&p){return stockAsset(archive,p);},renames,o.allLocaleNames,false))assets[f.first]=f.second;
  result.report["decals_copied"]=decalsCopied;result.report["options"]={{"source_scale",o.scale},{"quarter_turns",o.yaw},{"z_up",o.zUp},{"fit_to_donor",o.fit},{"decimate",o.decimate},{"fit_collision",o.fitCollision},{"build_effects",o.buildEffects},{"neutral_mask",o.neutralMask},{"add_paint",o.addPaint},{"paint_name",o.paintName},{"all_locale_names",o.allLocaleNames},{"fit_shadow",o.fitShadow},{"quality",int(o.quality)},{"keep_part_colors",o.keepPartColors},{"body_height_scale",o.bodyHeightScale},{"body_height_offset",o.bodyHeightOffset}};result.report["donor_id"]=donor.id;result.report["donor_name"]=donor.name;result.report["operation"]=overwrite?"Replace donor car":"Add as a new car";result.report["overwrite"]=overwrite?1:0;result.report["package_id"]=origin.packageId();result.report["authored_id"]=authored;result.report["name"]=name;result.report["source_title"]=s.title;

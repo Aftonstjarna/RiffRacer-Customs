@@ -1,3 +1,33 @@
+# RiffRacer Customs 0.3.6-beta.8
+
+## In-game summary
+
+- Imported cars keep the donor collision height.
+- Width and length still fit the imported model.
+- Boost pickups and tokens return to stock trigger height.
+
+## Full release notes
+
+- Keep the donor collision hull's vertical range when **Fit collision hull** is
+  on. Width and length still follow the imported wheel/body footprint, and the
+  broadphase bounds keep the donor's Y size.
+- Prevent tall imported bodies from enlarging the player trigger bounds, which
+  could make floating boost pickups and tokens miss their plane test.
+- Report the actual donor-sized `target_top` and the imported `body_top` in
+  `collision_fit`, and describe the width/length-only fit in the tooltip and
+  editor reference.
+- Add regressions for a tall collision target staying donor-sized and for a tall
+  exported body keeping the donor hull top and bottom.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. A Patty Wagon probe with a 5.32 m body kept the donor
+`hon` hull at 0.06–1.15 m. Stable 0.3.5 remains the default channel.
+
+Existing tall exports need to be re-exported with beta.8. As an immediate
+workaround, export the car with **Fit collision hull** unchecked.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.7
 
 ## In-game summary

@@ -512,10 +512,11 @@ model instead of truncating it. Donors without the required named body/four-whee
 layout or compatible car-paint layout are omitted. A missing material role stops
 conversion with an explanation.
 
-**Fit collision hull** (default on) maps the donor collision hull to the imported
-wheel width and body length/roof height, keeps the donor's ground clearance, and
-updates the hull's broadphase bounds. Hull topology and collision surface data
-stay the donor's, and `collision.btinfo` is unchanged.
+**Fit collision hull** (default on) maps the donor collision hull's width and
+length to the imported wheel/body footprint, keeps the donor's height and
+ground clearance, and updates the hull's broadphase bounds. This keeps pickup,
+token and handling trigger bounds at base-car height. Hull topology and
+collision surface data stay the donor's, and `collision.btinfo` is unchanged.
 
 **Rebuild effect shells** (default on) generates the `zone_front`, `electric` and
 `zone_back` shells from the imported exterior, simplifies them to the donor
