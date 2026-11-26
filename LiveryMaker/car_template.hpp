@@ -43,7 +43,7 @@ inline void rebuildFromTemplate(const Archive &stock,const CarTemplate &tpl,cons
     options.scale=values.value("source_scale",1.0);options.yaw=values.value("quarter_turns",0);options.zUp=values.value("z_up",false);options.fit=values.value("fit_to_donor",true);
     options.decimate=values.value("decimate",true);options.fitCollision=values.value("fit_collision",true);options.buildEffects=values.value("build_effects",true);options.neutralMask=values.value("neutral_mask",true);
     options.addPaint=values.value("add_paint",true);options.paintName=values.value("paint_name",std::string("Black"));options.allLocaleNames=values.value("all_locale_names",true);options.fitShadow=values.value("fit_shadow",true);
-    options.quality=quality;options.keepPartColors=values.value("keep_part_colors",false);
+    options.quality=quality;options.keepPartColors=values.value("keep_part_colors",false);options.bodyHeightScale=values.value("body_height_scale",1.0);options.bodyHeightOffset=values.value("body_height_offset",0.0);
     auto plan=importer::defaultPlan(source,donor->id,options.keepPartColors);
     if(recipe.contains("materials")&&recipe["materials"].is_array())for(const auto &sourceMaterial:recipe["materials"]){
         auto savedName=sourceMaterial.value("name",std::string());auto found=std::find_if(plan.materials.begin(),plan.materials.end(),[&](const importer::MaterialBinding &binding){return binding.name==savedName;});if(found==plan.materials.end())continue;auto &binding=*found;

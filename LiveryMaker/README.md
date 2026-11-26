@@ -445,6 +445,11 @@ track, or body length if no wheels are assigned. This may change proportions.
 With Fit off, source scale is retained and the model is centered and grounded.
 Donor wheel pivots are retained; their alignment with the body must be checked
 in game. Without imported wheels, stock wheel geometry is retained.
+**Body height scale** stretches or squashes the imported body vertically around
+its lowest fitted point; imported wheels keep their shape and ground contact.
+**Body height offset** then raises or lowers the body over the wheels in game
+units. Collision, effects, shadow and garage box follow the adjusted body.
+Templates and rebuilt cars retain both settings.
 
 Changing settings invalidates the preview; **Import and edit** regenerates it
 before opening the working copy. Source files and the game installation are not

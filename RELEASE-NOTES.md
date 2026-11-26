@@ -1,3 +1,32 @@
+# RiffRacer Customs 0.3.6-beta.7
+
+## In-game summary
+
+- Imported cars can raise or lower the body over the wheels.
+- A separate body height scale corrects tall or short models.
+- Wheels keep their shape, ground contact and placement.
+
+## Full release notes
+
+- Add **Body height scale** and **Body height offset** to the importer's Advanced
+  options. Height scale stretches or squashes the imported body vertically
+  around its lowest fitted point; height offset then raises or lowers the body
+  over the wheels in game units.
+- Leave imported wheels unchanged, so their shape, ground contact and fitted
+  wheelbase or track stay intact. Imports without wheel roles apply the controls
+  to the whole model.
+- Let collision, effect shells, shadow and garage box fitting use the adjusted
+  body bounds.
+- Store both values in `model-import.json` and carry them through template
+  rebuilds. Changing either control invalidates the preview.
+- Add regressions for body movement without wheel movement, template
+  persistence, and importer control invalidation.
+
+Validation: unit tests, the owner Impala test, and the unified, mod-attachment
+and importer smokes pass. Stable 0.3.5 remains the default channel.
+
+---
+
 # RiffRacer Customs 0.3.6-beta.6
 
 ## In-game summary
